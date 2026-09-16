@@ -18,6 +18,9 @@ const privateWorkspacePackages = new Set([
 ])
 
 const packageRoot = new URL('../packages/', import.meta.url)
+const repositoryUrl = 'https://github.com/you-want/PolyLLM'
+const homepageUrl = 'https://polly.raingpt.top'
+const bugsUrl = 'https://github.com/you-want/PolyLLM/issues'
 const errors = []
 
 async function exists(path) {
@@ -44,6 +47,14 @@ for (const directory of ['core', 'openai', 'deepseek', 'anthropic', 'openai-comp
   assert(publishablePackages.includes(manifest.name), `${label}: package name is not in the release set`)
   assert(manifest.private !== true, `${label}: publishable package must not be private`)
   assert(manifest.license === 'MIT', `${label}: license must be MIT`)
+  assert(manifest.repository?.type === 'git', `${label}: repository.type must be git`)
+  assert(manifest.repository?.url === repositoryUrl, `${label}: repository.url must be ${repositoryUrl}`)
+  assert(
+    manifest.repository?.directory === `packages/${directory}`,
+    `${label}: repository.directory must be packages/${directory}`,
+  )
+  assert(manifest.homepage === homepageUrl, `${label}: homepage must be ${homepageUrl}`)
+  assert(manifest.bugs?.url === bugsUrl, `${label}: bugs.url must be ${bugsUrl}`)
   assert(Array.isArray(manifest.files) && manifest.files.includes('dist'), `${label}: files must include dist`)
   assert(manifest.main === './dist/index.js', `${label}: main must be ./dist/index.js`)
   assert(manifest.types === './dist/index.d.ts', `${label}: types must be ./dist/index.d.ts`)

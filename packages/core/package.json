@@ -4,6 +4,15 @@
   "type": "module",
   "description": "PolyLLM core protocol, registry, resolver, and client.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/you-want/PolyLLM",
+    "directory": "packages/core"
+  },
+  "homepage": "https://polly.raingpt.top",
+  "bugs": {
+    "url": "https://github.com/you-want/PolyLLM/issues"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

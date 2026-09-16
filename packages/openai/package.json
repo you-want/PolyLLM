@@ -4,6 +4,15 @@
   "type": "module",
   "description": "PolyLLM OpenAI provider plugin.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/you-want/PolyLLM",
+    "directory": "packages/openai"
+  },
+  "homepage": "https://polly.raingpt.top",
+  "bugs": {
+    "url": "https://github.com/you-want/PolyLLM/issues"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

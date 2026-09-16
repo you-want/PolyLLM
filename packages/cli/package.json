@@ -4,6 +4,15 @@
   "type": "module",
   "description": "PolyLLM project initialization and configuration CLI.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/you-want/PolyLLM",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://polly.raingpt.top",
+  "bugs": {
+    "url": "https://github.com/you-want/PolyLLM/issues"
+  },
   "bin": {
     "polyllm": "./dist/main.js"
   },
