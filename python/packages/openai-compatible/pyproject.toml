@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "polyllm-openai-compatible"
+version = "0.1.0"
+description = "OpenAI-compatible endpoint plugin for PolyLLM."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["polyllm-core>=0.1.0"]
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "PolyLLM contributors" }]
+keywords = ["llm", "polyllm", "openai-compatible", "gateway"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/you-want/PolyLLM"
+Repository = "https://github.com/you-want/PolyLLM"
+Issues = "https://github.com/you-want/PolyLLM/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+polyllm_openai_compatible = ["py.typed"]

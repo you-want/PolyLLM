@@ -1,0 +1,37 @@
+{
+  "name": "@you-want/polyllm-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "PolyLLM project initialization and configuration CLI.",
+  "license": "MIT",
+  "bin": {
+    "polyllm": "./dist/main.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-studio-ui.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@you-want/polyllm-anthropic": "workspace:*",
+    "@you-want/polyllm-core": "workspace:*",
+    "@you-want/polyllm-deepseek": "workspace:*",
+    "@you-want/polyllm-openai": "workspace:*",
+    "@you-want/polyllm-openai-compatible": "workspace:*",
+    "@you-want/polyllm-studio": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

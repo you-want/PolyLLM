@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+__pycache__/
+.mypy_cache/
+*.py[cod]
+build/
+*.egg-info/
+python/dist/
+.env
+.env.*
+!.env.example

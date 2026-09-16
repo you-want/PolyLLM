@@ -1,0 +1,5 @@
+build>=1.2
+setuptools>=68
+wheel>=0.43
+twine>=6
+mypy>=1.11

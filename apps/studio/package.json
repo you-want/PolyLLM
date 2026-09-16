@@ -1,0 +1,25 @@
+{
+  "name": "@you-want/polyllm-studio-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PolyLLM visual configuration studio.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@you-want/polyllm-anthropic": "workspace:*",
+    "@you-want/polyllm-core": "workspace:*",
+    "@you-want/polyllm-deepseek": "workspace:*",
+    "@you-want/polyllm-openai-compatible": "workspace:*",
+    "@you-want/polyllm-openai": "workspace:*",
+    "@you-want/polyllm-studio": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.11"
+  }
+}

@@ -1,0 +1,38 @@
+name: Release npm
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pnpm install --frozen-lockfile
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r python/requirements-dev.txt
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm test:python
+      - run: pnpm typecheck
+      - run: pnpm typecheck:python
+      - run: pnpm verify:packages
+      - run: pnpm verify:integration
+      - run: pnpm verify:packed-install
+      - run: pnpm verify:python
+      - run: pnpm verify:release:frozen
+      - run: pnpm changeset publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

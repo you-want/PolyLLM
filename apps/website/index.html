@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="song">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="PolyLLM 是微内核、插件化的大模型统一接入层，支持 TypeScript 与 Python，通过本地 Studio 可视化选择厂商和模型。"
+    />
+    <meta name="theme-color" content="#f5f1e8" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/style.css" />
+    <title>PolyLLM · 万剑归宗 · 插件式大模型统一接入层</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="PolyLLM 首页">
+        <img src="/favicon.svg" alt="" />
+        <span>
+          <strong>PolyLLM</strong>
+          <small>万剑归宗</small>
+        </span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="#quick-start">快速开始</a>
+        <a href="#studio">本地 Studio</a>
+        <a href="#architecture">架构</a>
+        <a href="#languages">多语言</a>
+        <a href="#security">安全</a>
+      </nav>
+      <a class="header-cta" href="https://github.com/you-want/PolyLLM" target="_blank" rel="noreferrer">GitHub</a>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Microkernel · Plugins · Multi-language</p>
+          <h1>把模型选择权还给开发者</h1>
+          <p>
+            PolyLLM 是一个微内核、插件化的大模型统一接入层。核心只负责协议、注册、解析与参数策略；
+            厂商适配独立成包，按需安装、独立演进。
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#quick-start">查看快速开始</a>
+            <a class="button ghost" href="#studio">启动本地 Studio</a>
+          </div>
+          <ul class="hero-meta" aria-label="核心能力">
+            <li>统一 API</li>
+            <li>模型别名与快照</li>
+            <li>参数策略</li>
+            <li>本地可视化配置</li>
+          </ul>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="core">Core</div>
+          <div class="plugin openai">OpenAI</div>
+          <div class="plugin deepseek">DeepSeek</div>
+          <div class="plugin anthropic">Anthropic</div>
+          <div class="plugin compatible">Compatible</div>
+        </div>
+      </section>
+
+      <section class="section value" aria-labelledby="value-title">
+        <div class="section-header">
+          <p class="eyebrow">Why PolyLLM</p>
+          <h2 id="value-title">极简核心，按需插件</h2>
+          <p>不把几十个供应商依赖塞进一个“全家桶”，而是让每个团队只安装自己需要的部分。</p>
+        </div>
+        <div class="card-grid">
+          <article>
+            <span>01</span>
+            <h3>微内核核心</h3>
+            <p>统一请求、响应、ModelSpec、注册表、别名解析与参数策略，不包含任何供应商 HTTP 逻辑。</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>插件自治</h3>
+            <p>OpenAI、DeepSeek、Anthropic、OpenAI-compatible 独立成包，供应商 API 变化时只更新对应插件。</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>模型版本可控</h3>
+            <p>ModelSpec 声明能力、参数约束、上下文窗口和快照；别名指向常用模型，快照锁定版本。</p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>本地 Studio</h3>
+            <p>通过 CLI 启动本机可视化配置界面，选择厂商、获取模型、测试连接并生成项目配置。</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="quick-start" class="section quick-start" aria-labelledby="quick-start-title">
+        <div class="section-header">
+          <p class="eyebrow">Quick Start</p>
+          <h2 id="quick-start-title">三分钟接入第一个模型</h2>
+          <p>先用本地 Studio 完成选择和配置，再把生成物放进你的项目。</p>
+        </div>
+
+        <div class="quick-grid">
+          <article class="terminal-card">
+            <header>
+              <span></span><span></span><span></span>
+              <strong>启动可视化配置</strong>
+            </header>
+            <pre><code>npx @you-want/polyllm-cli studio</code></pre>
+            <p>CLI 会启动 <code>http://127.0.0.1:5177</code>，并自动打开浏览器。</p>
+          </article>
+
+          <article class="steps-card">
+            <ol>
+              <li>
+                <div class="step-copy">
+                  <strong>选择厂商</strong>
+                  <span>同时启用多家厂商，为每家指定默认模型。</span>
+                </div>
+              </li>
+              <li>
+                <div class="step-copy">
+                  <strong>获取模型</strong>
+                  <span>填写 Key 与 Base URL 后本机探测；无法获取时手动添加模型 ID。</span>
+                </div>
+              </li>
+              <li>
+                <div class="step-copy">
+                  <strong>测试连接</strong>
+                  <span>对单个模型发起最小请求，确认 Key、模型与网关可用。</span>
+                </div>
+              </li>
+              <li>
+                <div class="step-copy">
+                  <strong>生成配置</strong>
+                  <span>下载 polyllm.config.json、环境变量模板和 TypeScript 接入代码。</span>
+                </div>
+              </li>
+            </ol>
+          </article>
+        </div>
+
+        <div class="package-tabs" data-tabs>
+          <div class="tab-list" role="tablist" aria-label="语言安装示例">
+            <button type="button" role="tab" aria-selected="true" data-tab-target="typescript">TypeScript / Node.js</button>
+            <button type="button" role="tab" aria-selected="false" data-tab-target="python">Python</button>
+          </div>
+          <div class="tab-panel" role="tabpanel" data-tab-panel="typescript">
+            <pre><code>npm install @you-want/polyllm-core \
+  @you-want/polyllm-openai \
+  @you-want/polyllm-deepseek</code></pre>
+            <pre><code>import { createLLM } from '@you-want/polyllm-core'
+import { openAIPlugin } from '@you-want/polyllm-openai'
+import { deepSeekPlugin } from '@you-want/polyllm-deepseek'
+
+const llm = createLLM({
+  plugins: [openAIPlugin, deepSeekPlugin],
+  providers: {
+    openai: { apiKeyEnv: 'OPENAI_API_KEY' },
+    deepseek: { apiKeyEnv: 'DEEPSEEK_API_KEY' },
+  },
+  paramPolicy: 'strict',
+})
+
+const response = await llm.chat('deepseek:chat', {
+  messages: [{ role: 'user', content: '你好，PolyLLM' }],
+})</code></pre>
+          </div>
+          <div class="tab-panel" role="tabpanel" data-tab-panel="python" hidden>
+            <pre><code>python3 -m pip install polyllm-core \
+  polyllm-openai \
+  polyllm-deepseek</code></pre>
+            <pre><code>import asyncio
+from polyllm_core import create_llm
+from polyllm_deepseek import DeepSeekPlugin
+
+llm = create_llm(
+    plugins=[DeepSeekPlugin()],
+    providers={
+        'deepseek': {'api_key_env': 'DEEPSEEK_API_KEY'},
+    },
+)
+
+response = asyncio.run(
+    llm.chat(
+        'deepseek:chat',
+        messages=[{'role': 'user', 'content': '你好，PolyLLM'}],
+    )
+)</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="studio" class="section studio" aria-labelledby="studio-title">
+        <div>
+          <p class="eyebrow">Local Studio</p>
+          <h2 id="studio-title">官网只做引导，密钥留在本机</h2>
+          <p>
+            polyllm.dev 不提供 API Key 输入表单。真实配置界面由 CLI 在你的电脑上启动，
+            模型列表探测和连接测试都从本机发出。
+          </p>
+          <ul class="check-list">
+            <li>API Key 只保存在当前浏览器会话中</li>
+            <li>不写入 polyllm.config.json、日志或生成物</li>
+            <li>生成配置只引用环境变量名称</li>
+            <li>关闭标签页后会话缓存自动清空</li>
+          </ul>
+          <div class="command-row">
+            <code>npx @you-want/polyllm-cli studio --port 5177</code>
+            <button type="button" data-copy>复制</button>
+          </div>
+        </div>
+        <div class="studio-panel" aria-hidden="true">
+          <header>
+            <span>PolyLLM Studio</span>
+            <small>127.0.0.1</small>
+          </header>
+          <div class="studio-providers">
+            <span class="active">OpenAI</span>
+            <span>DeepSeek</span>
+            <span>Anthropic</span>
+            <span>Compatible</span>
+          </div>
+          <div class="studio-models">
+            <span>gpt-4o-mini</span>
+            <span>deepseek-chat</span>
+            <span>claude-sonnet-4-5</span>
+            <span>qwen-max</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture" class="section architecture" aria-labelledby="architecture-title">
+        <div class="section-header">
+          <p class="eyebrow">Architecture</p>
+          <h2 id="architecture-title">小核心，稳定协议</h2>
+          <p>核心层不感知供应商细节，所有差异都收敛在插件边界内。</p>
+        </div>
+        <div class="architecture-flow">
+          <article>
+            <h3>应用代码</h3>
+            <p>使用统一 chat / chatStream API</p>
+          </article>
+          <article class="core-node">
+            <h3>PolyLLM Core</h3>
+            <p>Registry · Resolver · ModelSpec · ParamPolicy</p>
+          </article>
+          <div class="plugin-column">
+            <article>OpenAI</article>
+            <article>DeepSeek</article>
+            <article>Anthropic</article>
+            <article>OpenAI-compatible</article>
+          </div>
+        </div>
+      </section>
+
+      <section id="languages" class="section languages" aria-labelledby="languages-title">
+        <div class="section-header">
+          <p class="eyebrow">Multi-language</p>
+          <h2 id="languages-title">先用 TypeScript 与 Python 跑通闭环</h2>
+          <p>每种语言都遵循生态习惯：TS 显式传插件，Python 类型完备，后续再扩展 Rust、Go 与 Java。</p>
+        </div>
+        <div class="language-grid">
+          <article>
+            <h3>TypeScript / Node.js</h3>
+            <p>npm 包、显式插件注入、AsyncIterable 流式响应、严格类型。</p>
+            <span>可用</span>
+          </article>
+          <article>
+            <h3>Python</h3>
+            <p>独立 wheel、py.typed、async API、SSE 流式解析与动态自定义模型。</p>
+            <span>可用</span>
+          </article>
+          <article>
+            <h3>Rust / Go / Java</h3>
+            <p>等待核心协议稳定后，按各自生态的插件加载方式逐步扩展。</p>
+            <span>规划中</span>
+          </article>
+        </div>
+      </section>
+
+      <section id="security" class="section security" aria-labelledby="security-title">
+        <div class="section-header">
+          <p class="eyebrow">Security</p>
+          <h2 id="security-title">默认不把密钥带进代码</h2>
+        </div>
+        <div class="security-grid">
+          <article>
+            <h3>环境变量引用</h3>
+            <p>生成物使用 apiKeyEnv / api_key_env，业务代码不持有明文密钥。</p>
+          </article>
+          <article>
+            <h3>本机探测</h3>
+            <p>Studio 的模型列表和连通性测试通过 localhost 服务代理，不经过官网服务器。</p>
+          </article>
+          <article>
+            <h3>可审计边界</h3>
+            <p>官网没有输入框收集 Key；CLI 与插件源码开源，便于审查网络请求。</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>PolyLLM · 万剑归宗</strong>
+        <p>Microkernel-based unified LLM access layer.</p>
+      </div>
+      <nav aria-label="资源">
+        <a href="https://github.com/you-want/PolyLLM" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://github.com/you-want/PolyLLM/blob/main/docs/getting-started.md" target="_blank" rel="noreferrer">Getting Started</a>
+        <a href="https://github.com/you-want/PolyLLM/blob/main/docs/release.md" target="_blank" rel="noreferrer">Release</a>
+      </nav>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

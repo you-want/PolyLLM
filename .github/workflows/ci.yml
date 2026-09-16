@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pnpm install --frozen-lockfile
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r python/requirements-dev.txt
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm test:python
+      - run: pnpm typecheck:python
+      - run: python3 python/version.py check
+      - run: python3 python/verify_packages.py
+      - run: python3 python/build_packages.py
+      - run: python3 -m twine check python/dist/*
+      - run: pnpm verify:python-install
+      - run: pnpm typecheck
+      - run: pnpm verify:packages
+      - run: pnpm verify:integration
+      - run: pnpm verify:packed-install
