@@ -27,16 +27,16 @@ pnpm --filter @you-want/polyllm-website build
 仓库中已经包含 `apps/website/public/CNAME`，内容为：
 
 ```text
-polly.raingpt.top
+polyllm.raingpt.top
 ```
 
-## 绑定 polly.raingpt.top
+## 绑定 polyllm.raingpt.top
 
-1. 在 GitHub 仓库的 **Settings → Pages → Custom domain** 中填写 `polly.raingpt.top` 并保存。
+1. 在 GitHub 仓库的 **Settings → Pages → Custom domain** 中填写 `polyllm.raingpt.top` 并保存。
 2. 在 `raingpt.top` 的 DNS 服务商添加一条 CNAME 记录：
 
 ```text
-主机记录  polly
+主机记录  polyllm
 记录类型  CNAME
 记录值    you-want.github.io
 ```

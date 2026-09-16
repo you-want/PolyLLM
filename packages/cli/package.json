@@ -9,7 +9,7 @@
     "url": "https://github.com/you-want/PolyLLM",
     "directory": "packages/cli"
   },
-  "homepage": "https://polly.raingpt.top",
+  "homepage": "https://polyllm.raingpt.top",
   "bugs": {
     "url": "https://github.com/you-want/PolyLLM/issues"
   },

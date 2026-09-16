@@ -19,7 +19,7 @@ const privateWorkspacePackages = new Set([
 
 const packageRoot = new URL('../packages/', import.meta.url)
 const repositoryUrl = 'https://github.com/you-want/PolyLLM'
-const homepageUrl = 'https://polly.raingpt.top'
+const homepageUrl = 'https://polyllm.raingpt.top'
 const bugsUrl = 'https://github.com/you-want/PolyLLM/issues'
 const errors = []
 
