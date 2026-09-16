@@ -27,28 +27,24 @@ pnpm --filter @you-want/polyllm-website build
 仓库中已经包含 `apps/website/public/CNAME`，内容为：
 
 ```text
-polyllm.dev
+polly.raingpt.top
 ```
 
-## 绑定 polyllm.dev
+## 绑定 polly.raingpt.top
 
-1. 在 GitHub 仓库的 **Settings → Pages** 中确认 Custom domain 为 `polyllm.dev`。
-2. 在域名服务商添加 GitHub Pages 的 A 记录：
+1. 在 GitHub 仓库的 **Settings → Pages → Custom domain** 中填写 `polly.raingpt.top` 并保存。
+2. 在 `raingpt.top` 的 DNS 服务商添加一条 CNAME 记录：
 
 ```text
-polyllm.dev  A  185.199.108.153
-polyllm.dev  A  185.199.109.153
-polyllm.dev  A  185.199.110.153
-polyllm.dev  A  185.199.111.153
+主机记录  polly
+记录类型  CNAME
+记录值    you-want.github.io
 ```
 
-3. 如果需要 `www.polyllm.dev` 跳转，添加 CNAME：
-
-```text
-www  CNAME  you-want.github.io
-```
-
+3. 等待 GitHub Pages 的 DNS Check 通过并签发证书。
 4. 在 GitHub Pages 设置中开启 **Enforce HTTPS**。
+
+使用 GitHub Actions 发布时，Pages 设置中的 Custom domain 是最终配置来源；仓库中的 `CNAME` 文件用于让本地构建产物和部署配置保持一致。
 
 ## 安全边界
 

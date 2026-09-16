@@ -6,7 +6,7 @@
 
 PolyLLM 是一个微内核、插件化的大模型统一接入层。核心只负责协议、注册、解析和参数策略；每个模型供应商独立成包，按需安装。
 
-官网：<https://polyllm.dev>
+官网：<https://polly.raingpt.top>
 
 ## 包结构
 
@@ -20,7 +20,7 @@ PolyLLM 是一个微内核、插件化的大模型统一接入层。核心只负
 | `@you-want/polyllm-studio` | 供应商目录、配置生成器、项目产物生成器 |
 | `@you-want/polyllm-studio-app` | Studio 前端源码与开发服务器（私有包，不需要发布安装） |
 | `@you-want/polyllm-cli` | Studio 启动器、配置校验、项目生成、环境检查 |
-| `@you-want/polyllm-website` | polyllm.dev 官网（私有包，部署到 GitHub Pages） |
+| `@you-want/polyllm-website` | polly.raingpt.top 官网（私有包，部署到 GitHub Pages） |
 | `@you-want/polyllm-example-typescript` | TypeScript 示例应用 |
 | `polyllm-core` | Python 核心包 |
 | `polyllm-openai` / `polyllm-deepseek` / `polyllm-anthropic` | Python 官方厂商插件 |
