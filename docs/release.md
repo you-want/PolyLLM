@@ -12,6 +12,12 @@ PolyLLM has two independent release channels:
 - Before a release, npm packages and Python packages must use the same `MAJOR.MINOR.PATCH` version.
 - Python release notes live in `docs/release/`; do not put Python package names in `.changeset/*.md`.
 
+## Initial 0.1.0 Bootstrap
+
+The unpublished `0.1.0` packages were frozen with package-level initial changelogs instead of applying the development-phase changesets, which would have incorrectly advanced the first public version to `0.2.0`.
+
+This is a one-time bootstrap rule. Every npm-facing change after the `0.1.0` release candidate must add a normal changeset and must not edit published changelog history.
+
 ## Pre-Release
 
 ```bash

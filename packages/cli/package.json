@@ -15,7 +15,7 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "CHANGELOG.md"],
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-studio-ui.mjs",
     "test": "vitest run",
