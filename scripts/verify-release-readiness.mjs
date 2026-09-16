@@ -122,6 +122,20 @@ for (const workflow of ['ci.yml', 'release-python.yml', 'release-npm.yml']) {
   }
 }
 
+const npmReleaseWorkflowPath = join(projectRoot, '.github', 'workflows', 'release-npm.yml')
+if (existsSync(npmReleaseWorkflowPath)) {
+  const workflow = await readFile(npmReleaseWorkflowPath, 'utf8')
+  for (const marker of ['publish-next', 'promote-latest', 'PUBLISH_NEXT', 'PROMOTE_LATEST']) {
+    if (!workflow.includes(marker)) {
+      errors.push(`release-npm.yml is missing safe release marker: ${marker}`)
+    }
+  }
+}
+
+if (!existsSync(join(projectRoot, 'scripts', 'promote-npm-dist-tag.mjs'))) {
+  errors.push('npm dist-tag promotion script is missing')
+}
+
 if (errors.length > 0) {
   console.error(`Release readiness validation failed:\n${errors.map((error) => `- ${error}`).join('\n')}`)
   process.exit(1)

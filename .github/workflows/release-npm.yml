@@ -2,11 +2,32 @@ name: Release npm
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: npm release operation
+        type: choice
+        required: true
+        default: publish-next
+        options:
+          - publish-next
+          - promote-latest
+          - publish-latest
+      confirmation:
+        description: Type PUBLISH_NEXT, PROMOTE_LATEST, or PUBLISH_LATEST
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
     environment: npm
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_CONFIG_PROVENANCE: "true"
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -17,9 +38,27 @@ jobs:
           node-version: 22
           cache: pnpm
           registry-url: https://registry.npmjs.org/
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@^11.5.1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Validate release operation
+        env:
+          OPERATION: ${{ inputs.operation }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          case "$OPERATION" in
+            publish-next) expected="PUBLISH_NEXT" ;;
+            promote-latest) expected="PROMOTE_LATEST" ;;
+            publish-latest) expected="PUBLISH_LATEST" ;;
+            *) echo "Unknown release operation: $OPERATION" >&2; exit 1 ;;
+          esac
+
+          if [ "$CONFIRMATION" != "$expected" ]; then
+            echo "Confirmation must be exactly: $expected" >&2
+            exit 1
+          fi
       - run: pnpm install --frozen-lockfile
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r python/requirements-dev.txt
@@ -33,6 +72,12 @@ jobs:
       - run: pnpm verify:packed-install
       - run: pnpm verify:python
       - run: pnpm verify:release:frozen
-      - run: pnpm changeset publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish release candidate to next
+        if: ${{ inputs.operation == 'publish-next' }}
+        run: pnpm changeset publish --tag next --no-git-tag
+      - name: Publish directly to latest
+        if: ${{ inputs.operation == 'publish-latest' }}
+        run: pnpm changeset publish --tag latest --no-git-tag
+      - name: Promote the frozen version to latest
+        if: ${{ inputs.operation == 'promote-latest' }}
+        run: node scripts/promote-npm-dist-tag.mjs latest

@@ -55,13 +55,17 @@ pnpm verify:release:frozen
 
 Configure a GitHub environment named `npm` and add an npm automation token as `NPM_TOKEN`.
 
-Run the manual workflow:
+For the first release rehearsal, run the manual workflow with:
 
 ```text
 GitHub Actions → Release npm → Run workflow
+operation: publish-next
+confirmation: PUBLISH_NEXT
 ```
 
-The workflow validates builds, tests, types, package metadata, and frozen release state before publishing.
+The workflow validates builds, tests, types, package metadata, and frozen release state before publishing. Install and test the release candidate with the `next` tag in an empty project. After validation, run the workflow again with `operation: promote-latest` and `confirmation: PROMOTE_LATEST`; this moves the already-published frozen version to `latest` without uploading it again.
+
+`publish-latest` with confirmation `PUBLISH_LATEST` exists for deliberate direct stable releases, but it is not the default path.
 
 首次正式发布前，应先使用 prerelease tag 在 npm 做一次演练，并在一个空项目中执行官网安装示例。
 
