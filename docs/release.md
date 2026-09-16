@@ -71,10 +71,17 @@ The workflow validates builds, tests, types, package metadata, and frozen releas
 
 ## PyPI Release
 
-Python 发布使用 PyPI Trusted Publishing，不需要在 GitHub 保存 PyPI API Token。首次发布前，先在 GitHub 创建两个 Environment：
+Python 发布使用 PyPI Trusted Publishing，不需要在 GitHub 保存 PyPI API Token。首次创建多个项目时，每个 Pending Publisher 必须能被唯一识别，因此每个包使用独立的 GitHub Environment。
 
-- `testpypi`
-- `pypi`
+首次发布前，在 GitHub 创建下列 Environment：
+
+| 包 | TestPyPI Environment | PyPI Environment |
+| :--- | :--- | :--- |
+| `polyllm-core` | `testpypi-core` | `pypi-core` |
+| `polyllm-openai` | `testpypi-openai` | `pypi-openai` |
+| `polyllm-openai-compatible` | `testpypi-openai-compatible` | `pypi-openai-compatible` |
+| `polyllm-deepseek` | `testpypi-deepseek` | `pypi-deepseek` |
+| `polyllm-anthropic` | `testpypi-anthropic` | `pypi-anthropic` |
 
 然后在 **TestPyPI** 的账户 Publishing 设置中，为下列 5 个项目分别创建 Pending Trusted Publisher：
 
@@ -84,23 +91,19 @@ Python 发布使用 PyPI Trusted Publishing，不需要在 GitHub 保存 PyPI AP
 - `polyllm-deepseek`
 - `polyllm-anthropic`
 
-每个 Pending Publisher 使用相同配置：
+每个 Pending Publisher 使用以下配置，其中 Environment 必须使用上表中与包对应的值：
 
 ```text
 PyPI project name: 对应的包名
 GitHub owner: you-want
 Repository: PolyLLM
 Workflow filename: release-python.yml
-Environment: testpypi
+Environment: 对应的 testpypi-* Environment
 ```
 
-在正式 **PyPI** 再创建一组 Pending Trusted Publisher，唯一差异是：
+在正式 **PyPI** 再创建一组 Pending Trusted Publisher，Environment 使用对应的 `pypi-*` 值。
 
-```text
-Environment: pypi
-```
-
-Workflow 文件名只填写 `release-python.yml`，不要填写 `.github/workflows/` 前缀。TestPyPI 与 PyPI 是独立注册表，必须分别配置。
+Workflow 文件名只填写 `release-python.yml`，不要填写 `.github/workflows/` 前缀。TestPyPI 与 PyPI 是独立注册表，必须分别配置。不要让多个尚未创建的项目共享同一个 Pending Publisher 身份，否则 PyPI 只会将一次 OIDC 令牌转换为其中一个项目的发布权限。
 
 先运行 TestPyPI 演练：
 

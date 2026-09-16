@@ -70,7 +70,22 @@ jobs:
     if: ${{ inputs.operation == 'testpypi' }}
     needs: build
     runs-on: ubuntu-latest
-    environment: testpypi
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - package: core
+            distribution: polyllm_core
+          - package: openai
+            distribution: polyllm_openai
+          - package: openai-compatible
+            distribution: polyllm_openai_compatible
+          - package: deepseek
+            distribution: polyllm_deepseek
+          - package: anthropic
+            distribution: polyllm_anthropic
+    environment: testpypi-${{ matrix.package }}
     permissions:
       contents: read
       id-token: write
@@ -79,16 +94,44 @@ jobs:
         with:
           name: python-distributions
           path: python/dist/
+      - name: Select ${{ matrix.package }} distributions
+        env:
+          DISTRIBUTION_PREFIX: ${{ matrix.distribution }}
+        run: |
+          mkdir -p python/publish
+          mapfile -t files < <(find python/dist -maxdepth 1 -type f -name "${DISTRIBUTION_PREFIX}-*" -print)
+
+          if [ "${#files[@]}" -ne 2 ]; then
+            echo "Expected exactly 2 distributions for ${DISTRIBUTION_PREFIX}, found ${#files[@]}" >&2
+            exit 1
+          fi
+
+          cp "${files[@]}" python/publish/
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
-          packages-dir: python/dist
+          packages-dir: python/publish
 
   publish:
     if: ${{ inputs.operation == 'pypi' }}
     needs: build
     runs-on: ubuntu-latest
-    environment: pypi
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - package: core
+            distribution: polyllm_core
+          - package: openai
+            distribution: polyllm_openai
+          - package: openai-compatible
+            distribution: polyllm_openai_compatible
+          - package: deepseek
+            distribution: polyllm_deepseek
+          - package: anthropic
+            distribution: polyllm_anthropic
+    environment: pypi-${{ matrix.package }}
     permissions:
       contents: read
       id-token: write
@@ -97,6 +140,19 @@ jobs:
         with:
           name: python-distributions
           path: python/dist/
+      - name: Select ${{ matrix.package }} distributions
+        env:
+          DISTRIBUTION_PREFIX: ${{ matrix.distribution }}
+        run: |
+          mkdir -p python/publish
+          mapfile -t files < <(find python/dist -maxdepth 1 -type f -name "${DISTRIBUTION_PREFIX}-*" -print)
+
+          if [ "${#files[@]}" -ne 2 ]; then
+            echo "Expected exactly 2 distributions for ${DISTRIBUTION_PREFIX}, found ${#files[@]}" >&2
+            exit 1
+          fi
+
+          cp "${files[@]}" python/publish/
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
-          packages-dir: python/dist
+          packages-dir: python/publish
