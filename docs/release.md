@@ -83,13 +83,13 @@ Python 发布使用 PyPI Trusted Publishing，不需要在 GitHub 保存 PyPI AP
 | `polyllm-deepseek` | `testpypi-deepseek` | `pypi-deepseek` |
 | `polyllm-anthropic` | `testpypi-anthropic` | `pypi-anthropic` |
 
-然后在 **TestPyPI** 的账户 Publishing 设置中，为下列 5 个项目分别创建 Pending Trusted Publisher：
+TestPyPI/PyPI 每个账户同时最多保留 3 个 Pending Trusted Publisher，因此首次创建项目必须使用两批发布。
+
+第一批在 **TestPyPI** 的账户 Publishing 设置中创建以下 Pending Trusted Publisher：
 
 - `polyllm-core`
 - `polyllm-openai`
 - `polyllm-openai-compatible`
-- `polyllm-deepseek`
-- `polyllm-anthropic`
 
 每个 Pending Publisher 使用以下配置，其中 Environment 必须使用上表中与包对应的值：
 
@@ -101,15 +101,32 @@ Workflow filename: release-python.yml
 Environment: 对应的 testpypi-* Environment
 ```
 
-在正式 **PyPI** 再创建一组 Pending Trusted Publisher，Environment 使用对应的 `pypi-*` 值。
-
-Workflow 文件名只填写 `release-python.yml`，不要填写 `.github/workflows/` 前缀。TestPyPI 与 PyPI 是独立注册表，必须分别配置。不要让多个尚未创建的项目共享同一个 Pending Publisher 身份，否则 PyPI 只会将一次 OIDC 令牌转换为其中一个项目的发布权限。
-
-先运行 TestPyPI 演练：
+运行第一批：
 
 ```text
 GitHub Actions → Release Python → Run workflow
 operation: testpypi
+package_batch: bootstrap-1
+confirmation: PUBLISH_TESTPYPI
+```
+
+第一批成功后，Pending Publisher 会转换为项目的普通 Trusted Publisher 并释放待定名额。此时再创建第二批：
+
+- `polyllm-deepseek`
+- `polyllm-anthropic`
+
+然后使用 `package_batch: bootstrap-2` 和相同确认词再次运行工作流。
+
+在正式 **PyPI** 重复相同的 `bootstrap-1`、`bootstrap-2` 两批流程，Environment 改用对应的 `pypi-*` 值。已有项目的后续版本发布使用 `package_batch: all`。
+
+Workflow 文件名只填写 `release-python.yml`，不要填写 `.github/workflows/` 前缀。TestPyPI 与 PyPI 是独立注册表，必须分别配置。不要让多个尚未创建的项目共享同一个 Pending Publisher 身份，否则 PyPI 只会将一次 OIDC 令牌转换为其中一个项目的发布权限。
+
+完成首次注册后，日常 TestPyPI 全量演练使用：
+
+```text
+GitHub Actions → Release Python → Run workflow
+operation: testpypi
+package_batch: all
 confirmation: PUBLISH_TESTPYPI
 ```
 
@@ -131,6 +148,7 @@ python3 -m venv /tmp/polyllm-testpypi
 ```text
 GitHub Actions → Release Python → Run workflow
 operation: pypi
+package_batch: all
 confirmation: PUBLISH_PYPI
 ```
 

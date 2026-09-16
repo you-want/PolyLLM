@@ -11,6 +11,15 @@ on:
         options:
           - testpypi
           - pypi
+      package_batch:
+        description: Package batch (use bootstrap-1 then bootstrap-2 for new projects)
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - bootstrap-1
+          - bootstrap-2
       confirmation:
         description: Type PUBLISH_TESTPYPI or PUBLISH_PYPI
         type: string
@@ -26,6 +35,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      publish-matrix: ${{ steps.release-plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
@@ -35,8 +46,10 @@ jobs:
         with:
           python-version: "3.11"
       - name: Validate release operation
+        id: release-plan
         env:
           OPERATION: ${{ inputs.operation }}
+          PACKAGE_BATCH: ${{ inputs.package_batch }}
           CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           case "$OPERATION" in
@@ -49,6 +62,24 @@ jobs:
             echo "Confirmation must be exactly: $expected" >&2
             exit 1
           fi
+
+          case "$PACKAGE_BATCH" in
+            all)
+              matrix='{"include":[{"package":"core","distribution":"polyllm_core"},{"package":"openai","distribution":"polyllm_openai"},{"package":"openai-compatible","distribution":"polyllm_openai_compatible"},{"package":"deepseek","distribution":"polyllm_deepseek"},{"package":"anthropic","distribution":"polyllm_anthropic"}]}'
+              ;;
+            bootstrap-1)
+              matrix='{"include":[{"package":"core","distribution":"polyllm_core"},{"package":"openai","distribution":"polyllm_openai"},{"package":"openai-compatible","distribution":"polyllm_openai_compatible"}]}'
+              ;;
+            bootstrap-2)
+              matrix='{"include":[{"package":"deepseek","distribution":"polyllm_deepseek"},{"package":"anthropic","distribution":"polyllm_anthropic"}]}'
+              ;;
+            *)
+              echo "Unknown package batch: $PACKAGE_BATCH" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r python/requirements-dev.txt
       - run: node scripts/verify-release-readiness.mjs --frozen
@@ -73,18 +104,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 1
-      matrix:
-        include:
-          - package: core
-            distribution: polyllm_core
-          - package: openai
-            distribution: polyllm_openai
-          - package: openai-compatible
-            distribution: polyllm_openai_compatible
-          - package: deepseek
-            distribution: polyllm_deepseek
-          - package: anthropic
-            distribution: polyllm_anthropic
+      matrix: ${{ fromJSON(needs.build.outputs.publish-matrix) }}
     environment: testpypi-${{ matrix.package }}
     permissions:
       contents: read
@@ -119,18 +139,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 1
-      matrix:
-        include:
-          - package: core
-            distribution: polyllm_core
-          - package: openai
-            distribution: polyllm_openai
-          - package: openai-compatible
-            distribution: polyllm_openai_compatible
-          - package: deepseek
-            distribution: polyllm_deepseek
-          - package: anthropic
-            distribution: polyllm_anthropic
+      matrix: ${{ fromJSON(needs.build.outputs.publish-matrix) }}
     environment: pypi-${{ matrix.package }}
     permissions:
       contents: read
