@@ -71,18 +71,64 @@ The workflow validates builds, tests, types, package metadata, and frozen releas
 
 ## PyPI Release
 
-Configure Trusted Publishing:
+Python 发布使用 PyPI Trusted Publishing，不需要在 GitHub 保存 PyPI API Token。首次发布前，先在 GitHub 创建两个 Environment：
 
-- PyPI publisher: `you-want/PolyLLM`
-- Workflow: `.github/workflows/release-python.yml`
-- Environments: `pypi` and `testpypi`
+- `testpypi`
+- `pypi`
 
-Run the manual workflow:
+然后在 **TestPyPI** 的账户 Publishing 设置中，为下列 5 个项目分别创建 Pending Trusted Publisher：
+
+- `polyllm-core`
+- `polyllm-openai`
+- `polyllm-openai-compatible`
+- `polyllm-deepseek`
+- `polyllm-anthropic`
+
+每个 Pending Publisher 使用相同配置：
+
+```text
+PyPI project name: 对应的包名
+GitHub owner: you-want
+Repository: PolyLLM
+Workflow filename: release-python.yml
+Environment: testpypi
+```
+
+在正式 **PyPI** 再创建一组 Pending Trusted Publisher，唯一差异是：
+
+```text
+Environment: pypi
+```
+
+Workflow 文件名只填写 `release-python.yml`，不要填写 `.github/workflows/` 前缀。TestPyPI 与 PyPI 是独立注册表，必须分别配置。
+
+先运行 TestPyPI 演练：
 
 ```text
 GitHub Actions → Release Python → Run workflow
+operation: testpypi
+confirmation: PUBLISH_TESTPYPI
 ```
 
-Use the `use_test_pypi` option for a TestPyPI rehearsal before publishing to PyPI.
+发布成功后，在全新虚拟环境中验证：
+
+```bash
+python3 -m venv /tmp/polyllm-testpypi
+/tmp/polyllm-testpypi/bin/python -m pip install \
+  --index-url https://test.pypi.org/simple/ \
+  polyllm-core==0.1.0 \
+  polyllm-openai==0.1.0 \
+  polyllm-openai-compatible==0.1.0 \
+  polyllm-deepseek==0.1.0 \
+  polyllm-anthropic==0.1.0
+```
+
+验证通过后再正式发布：
+
+```text
+GitHub Actions → Release Python → Run workflow
+operation: pypi
+confirmation: PUBLISH_PYPI
+```
 
 `0.1.0` 正式发布前必须先完成一次 TestPyPI 演练；该步骤需要仓库环境和 Trusted Publishing 配置，不能由本地测试替代。

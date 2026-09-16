@@ -132,6 +132,16 @@ if (existsSync(npmReleaseWorkflowPath)) {
   }
 }
 
+const pythonReleaseWorkflowPath = join(projectRoot, '.github', 'workflows', 'release-python.yml')
+if (existsSync(pythonReleaseWorkflowPath)) {
+  const workflow = await readFile(pythonReleaseWorkflowPath, 'utf8')
+  for (const marker of ['testpypi', 'pypi', 'PUBLISH_TESTPYPI', 'PUBLISH_PYPI', 'id-token: write']) {
+    if (!workflow.includes(marker)) {
+      errors.push(`release-python.yml is missing safe release marker: ${marker}`)
+    }
+  }
+}
+
 if (!existsSync(join(projectRoot, 'scripts', 'promote-npm-dist-tag.mjs'))) {
   errors.push('npm dist-tag promotion script is missing')
 }

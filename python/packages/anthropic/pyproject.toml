@@ -27,7 +27,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/you-want/PolyLLM"
+Homepage = "https://polyllm.raingpt.top"
 Repository = "https://github.com/you-want/PolyLLM"
 Issues = "https://github.com/you-want/PolyLLM/issues"
 

@@ -42,7 +42,7 @@ PACKAGES: dict[str, dict[str, object]] = {
     },
 }
 PROJECT_URLS = {
-    "Homepage": "https://github.com/you-want/PolyLLM",
+    "Homepage": "https://polyllm.raingpt.top",
     "Repository": "https://github.com/you-want/PolyLLM",
     "Issues": "https://github.com/you-want/PolyLLM/issues",
 }
