@@ -19,12 +19,20 @@ for package in PACKAGES:
     sys.path.insert(0, str(ROOT / "packages" / package / "src"))
 
 
-def main() -> int:
+def discover_tests(test_dir: Path) -> unittest.TestSuite:
     loader = unittest.TestLoader()
+    return loader.discover(
+        start_dir=str(test_dir),
+        pattern="test*.py",
+        top_level_dir=str(test_dir),
+    )
+
+
+def main() -> int:
     suite = unittest.TestSuite()
-    suite.addTests(loader.discover(str(ROOT / "tests")))
+    suite.addTests(discover_tests(ROOT / "tests"))
     for package in PACKAGES:
-        suite.addTests(loader.discover(str(ROOT / "packages" / package / "tests")))
+        suite.addTests(discover_tests(ROOT / "packages" / package / "tests"))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
 

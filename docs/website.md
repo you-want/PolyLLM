@@ -22,6 +22,8 @@ pnpm --filter @you-want/polyllm-website build
 
 推送到 `main` 并修改 `apps/website/**` 时，`.github/workflows/website.yml` 会自动构建并发布到 GitHub Pages。也可以在 GitHub Actions 页面手动触发 `Website` 工作流。
 
+首次发布前，需要由仓库管理员在 GitHub 仓库的 **Settings → Pages → Build and deployment → Source** 中选择 **GitHub Actions**。默认 `GITHUB_TOKEN` 出于权限边界不能替仓库自动开启 Pages；完成一次设置后，后续发布全部由 workflow 自动完成。
+
 仓库中已经包含 `apps/website/public/CNAME`，内容为：
 
 ```text
