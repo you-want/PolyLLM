@@ -1,0 +1,2 @@
+polyllm-core==0.1.0
+polyllm-openai-compatible==0.1.0

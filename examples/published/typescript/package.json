@@ -1,0 +1,14 @@
+{
+  "name": "@you-want/polyllm-published-typescript-example",
+  "private": true,
+  "type": "module",
+  "description": "User-style smoke example using published PolyLLM npm packages.",
+  "scripts": {
+    "start": "node src/main.mjs",
+    "smoke": "node src/smoke.mjs"
+  },
+  "dependencies": {
+    "@you-want/polyllm-core": "0.1.0",
+    "@you-want/polyllm-openai-compatible": "0.1.0"
+  }
+}

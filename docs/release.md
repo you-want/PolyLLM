@@ -67,7 +67,7 @@ The workflow validates builds, tests, types, package metadata, and frozen releas
 
 `publish-latest` with confirmation `PUBLISH_LATEST` exists for deliberate direct stable releases, but it is not the default path.
 
-首次正式发布前，应先使用 prerelease tag 在 npm 做一次演练，并在一个空项目中执行官网安装示例。
+`0.1.0` 已完成 npm 正式发布与空项目安装验收。后续版本仍建议先使用 prerelease tag 在 npm 做一次演练，并在空项目中执行安装示例。
 
 ## PyPI Release
 
@@ -152,4 +152,24 @@ package_batch: all
 confirmation: PUBLISH_PYPI
 ```
 
-`0.1.0` 正式发布前必须先完成一次 TestPyPI 演练；该步骤需要仓库环境和 Trusted Publishing 配置，不能由本地测试替代。
+`0.1.0` 已完成 TestPyPI 演练、正式 PyPI 分批发布和全新虚拟环境验收；后续版本可直接使用 `package_batch: all`，但仍应保留 TestPyPI 演练作为发布前门禁。
+
+## Published-package smoke examples
+
+发布后的真实用户路径可在 `examples/published/` 中验证：
+
+```bash
+cd examples/published/typescript
+npm install
+npm run smoke
+```
+
+```bash
+cd examples/published/python
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+python smoke.py
+```
+
+两套 smoke 测试都只访问本地 Mock OpenAI-compatible 服务，不需要真实密钥；真实服务调用方式见各目录 README。

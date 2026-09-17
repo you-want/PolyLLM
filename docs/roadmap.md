@@ -21,7 +21,8 @@ PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统
 - [x] 验证 npm tarball 的 exports、类型声明、实际导入和 CLI 二进制
 - [x] 验证 Python wheel 的隔离安装、公开导入和 `py.typed` 标记
 - [x] 将稳定性检查接入 CI 与 npm / PyPI 发布工作流
-- [ ] 在 npm prerelease 与 TestPyPI 完成一次真实发布演练
+- [x] 在 npm prerelease 与 TestPyPI 完成一次真实发布演练
+- [x] 完成 npm 与 PyPI `0.1.0` 正式发布，并通过独立用户示例验收
 
 ### 第二优先级：Studio 完整闭环
 
