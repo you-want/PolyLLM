@@ -2,7 +2,7 @@
 
 PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统一接入层。核心协议保持小而稳定，供应商差异收敛在独立插件中，Studio 负责本地安全配置与项目初始化。
 
-## 当前发布候选：0.2.0
+## 当前正式版本：0.2.0
 
 - TypeScript Core 与 Python Core
 - OpenAI、DeepSeek、Anthropic、OpenAI-compatible 插件
