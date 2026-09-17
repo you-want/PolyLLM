@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" role="img" aria-labelledby="polyllm-lockup-title">
+  <title id="polyllm-lockup-title">PolyLLM · 万剑归宗</title>
+  <defs>
+    <linearGradient id="polyllm-lockup-blade" x1="84" y1="78" x2="84" y2="164" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8fb4ff"/>
+      <stop offset="58%" stop-color="#5d7cff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="polyllm-lockup-core" x1="48" y1="92" x2="121" y2="168" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#dce8ff"/>
+      <stop offset="52%" stop-color="#78a5ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(24 20) scale(.4883)">
+    <g fill="url(#polyllm-lockup-blade)">
+      <path d="M256 62 238 204l18 26 18-26Z"/>
+      <path d="M256 62 238 204l18 26 18-26Z" transform="rotate(60 256 256)"/>
+      <path d="M256 62 238 204l18 26 18-26Z" transform="rotate(120 256 256)"/>
+      <path d="M256 62 238 204l18 26 18-26Z" transform="rotate(180 256 256)"/>
+      <path d="M256 62 238 204l18 26 18-26Z" transform="rotate(240 256 256)"/>
+      <path d="M256 62 238 204l18 26 18-26Z" transform="rotate(300 256 256)"/>
+    </g>
+    <path d="M256 176 324 215v78l-68 39-68-39v-78Z" fill="#17213b" stroke="url(#polyllm-lockup-core)" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M235 219h29c16 0 29 11 29 26s-13 26-29 26h-13v22h-16Zm16 14v24h12c8 0 13-5 13-12s-5-12-13-12Z" fill="#f7faff"/>
+    <path d="M251 233v24h12c8 0 13-5 13-12s-5-12-13-12Z" fill="#17213b"/>
+  </g>
+
+  <text x="336" y="158" fill="#f8fafc" font-family="Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif" font-size="112" font-weight="800" letter-spacing="-4">PolyLLM</text>
+  <text x="342" y="224" fill="#78a5ff" font-family="Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif" font-size="52" font-weight="750" letter-spacing="8">万剑归宗</text>
+  <text x="342" y="274" fill="#b8c2d6" font-family="Inter, system-ui, sans-serif" font-size="31" font-weight="650" letter-spacing="2">Unified LLM Access Layer</text>
+</svg>

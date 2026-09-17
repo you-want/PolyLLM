@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="assets/logo-horizontal.svg" alt="PolyLLM · 万剑归宗" width="720">
+  <img src="assets/logo-horizontal.svg#gh-light-mode-only" alt="PolyLLM · 万剑归宗" width="720">
+  <img src="assets/logo-horizontal-dark.svg#gh-dark-mode-only" alt="PolyLLM · 万剑归宗" width="720">
 </p>
 
 # PolyLLM · 万剑归宗
