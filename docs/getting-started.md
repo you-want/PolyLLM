@@ -25,7 +25,9 @@ export ANTHROPIC_API_KEY=sk-ant-...
 npx @you-want/polyllm-cli studio
 ```
 
-Studio 会打开 `http://127.0.0.1:5177`。API Key 只保存在当前浏览器会话中，用于本机获取模型列表和测试连接，不会写入生成物。配置完成后，可以下载 `polyllm.config.json` 并使用 CLI 生成项目。
+Studio 会打开 `http://127.0.0.1:5177`。API Key 只保存在当前浏览器会话中，用于本机获取模型列表和测试连接，不会写入生成物。配置完成后，可以直接下载完整 TypeScript/Python 项目 ZIP，也可以下载 `polyllm.config.json` 并使用 CLI 生成项目。
+
+Studio 支持 TypeScript 的 npm、pnpm、yarn，以及 Python 的 pip 与 `pyproject.toml`。界面可预览完整文件树、导入已有配置继续编辑，并在浏览器本地生成 ZIP。
 
 发布后安装：
 

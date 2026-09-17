@@ -14,9 +14,10 @@
     "@you-want/polyllm-anthropic": "workspace:*",
     "@you-want/polyllm-core": "workspace:*",
     "@you-want/polyllm-deepseek": "workspace:*",
-    "@you-want/polyllm-openai-compatible": "workspace:*",
     "@you-want/polyllm-openai": "workspace:*",
-    "@you-want/polyllm-studio": "workspace:*"
+    "@you-want/polyllm-openai-compatible": "workspace:*",
+    "@you-want/polyllm-studio": "workspace:*",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

@@ -2,7 +2,7 @@
 
 PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统一接入层。核心协议保持小而稳定，供应商差异收敛在独立插件中，Studio 负责本地安全配置与项目初始化。
 
-## 当前版本：0.1.x MVP
+## 当前开发版本：0.2.0
 
 - TypeScript Core 与 Python Core
 - OpenAI、DeepSeek、Anthropic、OpenAI-compatible 插件
@@ -26,11 +26,12 @@ PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统
 
 ### 第二优先级：Studio 完整闭环
 
-- 支持 TypeScript / Python 项目生成
-- 支持 npm、pnpm、yarn 和 pip 安装命令
-- 生成 Python `pyproject.toml`、入口代码和 README
-- 支持配置导入、再次编辑和 ZIP 项目下载
-- 保持 API Key 只用于本机探测，不写入生成物
+- [x] 支持 TypeScript / Python 项目生成
+- [x] 支持 npm、pnpm、yarn 和 pip 安装命令
+- [x] 生成 Python `pyproject.toml`、入口代码和 README
+- [x] 支持配置导入、再次编辑和 ZIP 项目下载
+- [x] 保持 API Key 只用于本机探测，不写入生成物
+- [x] 在 CI 中真实编译生成的 TypeScript 项目并导入 Python 项目
 
 ### 第三优先级：统一协议增强
 

@@ -1,15 +1,20 @@
 import {
   createDefaultSelection,
+  createSelectionFromConfig,
   generateConfigJson,
   generateEnvTemplate,
   generateInstallCommand,
   generateLLMModule,
+  generateProjectFiles,
   generateSelectedModels,
+  packageManagers,
   providerCatalog,
+  type GeneratedProjectFile,
   type PackageManager,
   type ParamPolicy,
   type StudioSelection,
 } from '@you-want/polyllm-studio'
+import { strToU8, zipSync } from 'fflate'
 import './style.css'
 
 type ProviderId = keyof StudioSelection['providers']
@@ -27,14 +32,14 @@ interface ProviderUiState {
 }
 
 interface StudioCache {
-  version: 5
+  version: 6
   activeProvider: ProviderId
   selection: StudioSelection
   discoveredModels: Record<ProviderId, string[]>
   customModel: Record<ProviderId, string>
 }
 
-const cacheKey = 'polyllm.studio.config.v5'
+const cacheKey = 'polyllm.studio.config.v6'
 const apiKeyCacheKey = 'polyllm.studio.api-keys.v1'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -43,6 +48,8 @@ const appElement: HTMLDivElement = app
 
 let selection: StudioSelection = createDefaultSelection()
 let activeProvider: ProviderId = 'openai'
+let activeGeneratedFile = 'polyllm.config.json'
+let importFeedback: { status: 'success' | 'error'; message: string } | undefined
 let providerUi: Record<ProviderId, ProviderUiState> = {
   openai: { apiKey: '', discoveredModels: [], fetching: false, customModel: '', customNotice: '', modelSearch: '' },
   deepseek: { apiKey: '', discoveredModels: [], fetching: false, customModel: '', customNotice: '', modelSearch: '' },
@@ -60,13 +67,16 @@ function loadCachedState(): void {
 
   try {
     const cached = JSON.parse(raw) as StudioCache
-    if (![4, 5].includes(cached.version) || !isRecord(cached.selection)) return
+    if (![4, 5, 6].includes(cached.version) || !isRecord(cached.selection)) return
 
     const defaults = createDefaultSelection()
     const cachedSelection = cached.selection
     selection = {
-      language: 'typescript',
-      packageManager: ['pnpm', 'npm', 'yarn'].includes(cachedSelection.packageManager)
+      projectName: typeof cachedSelection.projectName === 'string' && cachedSelection.projectName.trim()
+        ? cachedSelection.projectName.trim()
+        : defaults.projectName,
+      language: cachedSelection.language === 'python' ? 'python' : 'typescript',
+      packageManager: ['pnpm', 'npm', 'yarn', 'pip'].includes(cachedSelection.packageManager)
         ? cachedSelection.packageManager
         : defaults.packageManager,
       paramPolicy: ['strict', 'lenient', 'auto'].includes(cachedSelection.paramPolicy)
@@ -106,7 +116,7 @@ function loadCachedState(): void {
       }]
     })) as Record<ProviderId, ProviderUiState>
 
-    const cachedActiveProvider = cached.version === 5 ? cached.activeProvider : undefined
+    const cachedActiveProvider = cached.version >= 5 ? cached.activeProvider : undefined
     activeProvider = providerCatalog.some((provider) => provider.id === cachedActiveProvider)
       ? cachedActiveProvider as ProviderId
       : providerCatalog.find((provider) => selection.providers[provider.id].enabled)?.id ?? 'openai'
@@ -130,7 +140,7 @@ function loadCachedState(): void {
 
 function saveCache(): void {
   const cache: StudioCache = {
-    version: 5,
+    version: 6,
     activeProvider,
     selection,
     discoveredModels: Object.fromEntries(providerCatalog.map((provider) => [
@@ -182,6 +192,8 @@ function updateProvider(
 }
 
 function syncProviderInputsBeforeRender(): void {
+  const projectNameInput = document.querySelector<HTMLInputElement>('#project-name')
+  if (projectNameInput?.value.trim()) selection = { ...selection, projectName: projectNameInput.value.trim() }
   const providerId = activeProvider
   const apiKeyInput = document.querySelector<HTMLInputElement>(`input[data-provider="${providerId}"][data-field="apiKey"]`)
   const baseUrlInput = document.querySelector<HTMLInputElement>(`input[data-provider="${providerId}"][data-field="baseUrl"]`)
@@ -205,6 +217,35 @@ function syncProviderInputsBeforeRender(): void {
   if (modelSearchInput) providerUi[providerId] = { ...providerUi[providerId], modelSearch: modelSearchInput.value }
 }
 
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function downloadProjectZip(files: readonly GeneratedProjectFile[]): void {
+  const root = selection.projectName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-|-$/g, '') || 'polyllm-app'
+  const entries = Object.fromEntries(files.map((file) => [`${root}/${file.path}`, strToU8(file.content)]))
+  downloadBlob(new Blob([zipSync(entries)], { type: 'application/zip' }), `${root}.zip`)
+}
+
+async function importConfig(file: File): Promise<void> {
+  try {
+    const imported = createSelectionFromConfig(JSON.parse(await file.text()))
+    selection = imported
+    activeProvider = providerCatalog.find((provider) => imported.providers[provider.id].enabled)?.id ?? 'openai'
+    activeGeneratedFile = 'polyllm.config.json'
+    importFeedback = { status: 'success', message: `已导入 ${file.name}，API Key 不会从配置文件恢复。` }
+    saveCache()
+  } catch (error) {
+    importFeedback = { status: 'error', message: error instanceof Error ? error.message : String(error) }
+  }
+  render(false)
+}
+
 function isCustomModel(providerId: ProviderId, modelId: string): boolean {
   const provider = providerCatalog.find((entry) => entry.id === providerId)
   if (!provider) return false
@@ -212,10 +253,19 @@ function isCustomModel(providerId: ProviderId, modelId: string): boolean {
     && !providerUi[providerId].discoveredModels.includes(modelId)
 }
 
-function render(): void {
-  syncProviderInputsBeforeRender()
+function render(syncInputs = true): void {
+  if (syncInputs) syncProviderInputsBeforeRender()
   const selectedModels = generateSelectedModels(selection)
   const enabledProviderCount = providerCatalog.filter((provider) => selection.providers[provider.id].enabled).length
+  let generatedFiles: GeneratedProjectFile[] = []
+  let generationError: string | undefined
+  try {
+    generatedFiles = generateProjectFiles(selection)
+  } catch (error) {
+    generationError = error instanceof Error ? error.message : String(error)
+  }
+  if (!generatedFiles.some((file) => file.path === activeGeneratedFile)) activeGeneratedFile = generatedFiles[0]?.path ?? ''
+  const activeFile = generatedFiles.find((file) => file.path === activeGeneratedFile) ?? generatedFiles[0]
   appElement.innerHTML = `
     <header class="hero">
       <div class="hero-copy">
@@ -231,20 +281,33 @@ function render(): void {
           </div>
         </div>
       </div>
-                  <button id="download-config" class="button button-primary">下载 polyllm.config.json</button>
+      <div class="hero-actions">
+        <input id="import-config-input" type="file" accept="application/json,.json" hidden />
+        <button id="import-config" class="button button-secondary">导入配置</button>
+        <button id="download-config" class="button button-secondary" ${generationError ? 'disabled' : ''}>下载配置</button>
+        <button id="download-project" class="button button-primary" ${generationError ? 'disabled' : ''}>下载完整项目 ZIP</button>
+      </div>
     </header>
 
     <main class="layout">
       <section class="panel selectors" aria-label="配置选择">
-        <div class="field-row">
+        ${importFeedback ? `<p class="import-feedback ${importFeedback.status}" role="status">${escapeHtml(importFeedback.message)}</p>` : ''}
+        <div class="field-row project-fields">
+          <label>
+            <span>项目名称</span>
+            <input id="project-name" type="text" value="${escapeHtml(selection.projectName)}" placeholder="polyllm-app" />
+          </label>
           <label>
             <span>目标语言</span>
-            <select disabled><option>TypeScript / Node.js</option></select>
+            <select id="language">
+              <option value="typescript" ${selection.language === 'typescript' ? 'selected' : ''}>TypeScript / Node.js</option>
+              <option value="python" ${selection.language === 'python' ? 'selected' : ''}>Python</option>
+            </select>
           </label>
           <label>
             <span>包管理器</span>
             <select id="package-manager">
-              ${(['pnpm', 'npm', 'yarn'] as PackageManager[]).map((manager) => `<option value="${manager}" ${selection.packageManager === manager ? 'selected' : ''}>${manager}</option>`).join('')}
+              ${packageManagers(selection.language).map((manager) => `<option value="${manager}" ${selection.packageManager === manager ? 'selected' : ''}>${manager}</option>`).join('')}
             </select>
           </label>
           <label>
@@ -412,27 +475,32 @@ function render(): void {
       <section class="panel output" aria-label="生成结果">
         <div class="output-header">
           <div>
-            <h2>生成物</h2>
-                            <p>${selectedModels.length} 个可调用模型 · ${Object.values(selection.providers).filter((provider) => provider.enabled).length} 个供应商</p>
+            <h2>项目预览</h2>
+            <p>${selection.language === 'python' ? 'Python' : 'TypeScript'} · ${generatedFiles.length} 个文件 · ${selectedModels.length} 个模型 · ${enabledProviderCount} 个供应商</p>
           </div>
         </div>
 
-        <article class="artifact">
+        ${generationError ? `<p class="generation-empty">${escapeHtml(generationError)}。启用厂商后即可预览并下载项目。</p>` : `<article class="artifact">
           <header><h3>安装依赖</h3><button class="button button-ghost" data-copy="install">复制</button></header>
           <pre><code>${escapeHtml(generateInstallCommand(selection))}</code></pre>
         </article>
-        <article class="artifact">
-          <header><h3>.env.example</h3><button class="button button-ghost" data-copy="env">复制</button></header>
-          <pre><code>${escapeHtml(generateEnvTemplate(selection))}</code></pre>
-        </article>
-        <article class="artifact">
-          <header><h3>src/llm.ts</h3><button class="button button-ghost" data-copy="module">复制</button></header>
-          <pre><code>${escapeHtml(generateLLMModule(selection))}</code></pre>
-        </article>
-        <article class="artifact">
-          <header><h3>polyllm.config.json</h3><button class="button button-ghost" data-copy="config">复制</button></header>
-          <pre><code>${escapeHtml(generateConfigJson(selection))}</code></pre>
-        </article>
+        <div class="project-preview">
+          <nav class="file-tree" aria-label="生成文件">
+            ${generatedFiles.map((file) => `
+              <button type="button" class="file-tree-item ${file.path === activeFile?.path ? 'active' : ''}" data-file-path="${escapeHtml(file.path)}" title="${escapeHtml(file.path)}">
+                <span>${escapeHtml(file.path)}</span>
+                <small>${new TextEncoder().encode(file.content).length} B</small>
+              </button>
+            `).join('')}
+          </nav>
+          <article class="artifact file-preview">
+            <header>
+              <h3>${escapeHtml(activeFile?.path ?? '')}</h3>
+              <button class="button button-ghost" data-copy-file="${escapeHtml(activeFile?.path ?? '')}">复制文件</button>
+            </header>
+            <pre><code>${escapeHtml(activeFile?.content ?? '')}</code></pre>
+          </article>
+        </div>`}
       </section>
     </main>
   `
@@ -563,6 +631,23 @@ async function testModel(providerId: ProviderId, modelOverride?: string): Promis
 }
 
 function bindEvents(): void {
+  document.querySelector<HTMLInputElement>('#project-name')?.addEventListener('change', (event) => {
+    const value = (event.target as HTMLInputElement).value.trim()
+    selection = { ...selection, projectName: value || 'polyllm-app' }
+    render()
+  })
+
+  document.querySelector<HTMLSelectElement>('#language')?.addEventListener('change', (event) => {
+    const language = (event.target as HTMLSelectElement).value === 'python' ? 'python' : 'typescript'
+    selection = {
+      ...selection,
+      language,
+      packageManager: language === 'python' ? 'pip' : 'pnpm',
+    }
+    activeGeneratedFile = 'polyllm.config.json'
+    render()
+  })
+
   document.querySelector<HTMLSelectElement>('#package-manager')?.addEventListener('change', (event) => {
     selection = { ...selection, packageManager: (event.target as HTMLSelectElement).value as PackageManager }
     render()
@@ -706,13 +791,38 @@ function bindEvents(): void {
   })
 
   document.querySelector<HTMLButtonElement>('#download-config')?.addEventListener('click', () => {
-    const blob = new Blob([generateConfigJson(selection)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'polyllm.config.json'
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadBlob(new Blob([generateConfigJson(selection)], { type: 'application/json' }), 'polyllm.config.json')
+  })
+
+  document.querySelector<HTMLButtonElement>('#download-project')?.addEventListener('click', () => {
+    const files = generateProjectFiles(selection)
+    if (files.length) downloadProjectZip(files)
+  })
+
+  document.querySelector<HTMLButtonElement>('#import-config')?.addEventListener('click', () => {
+    document.querySelector<HTMLInputElement>('#import-config-input')?.click()
+  })
+
+  document.querySelector<HTMLInputElement>('#import-config-input')?.addEventListener('change', (event) => {
+    const file = (event.target as HTMLInputElement).files?.[0]
+    if (file) void importConfig(file)
+  })
+
+  document.querySelectorAll<HTMLButtonElement>('button[data-file-path]').forEach((button) => {
+    button.addEventListener('click', () => {
+      activeGeneratedFile = button.dataset.filePath ?? activeGeneratedFile
+      render()
+    })
+  })
+
+  document.querySelectorAll<HTMLButtonElement>('button[data-copy-file]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const file = generateProjectFiles(selection).find((entry) => entry.path === button.dataset.copyFile)
+      if (!file) return
+      await navigator.clipboard.writeText(file.content)
+      button.textContent = '已复制'
+      setTimeout(() => { button.textContent = '复制文件' }, 1200)
+    })
   })
 
   document.querySelectorAll<HTMLButtonElement>('button[data-copy]').forEach((button) => {

@@ -100,14 +100,15 @@ pnpm --filter @you-want/polyllm-studio-app dev
 - Base URL：支持官方地址或兼容网关
 - 密钥环境变量：自动使用供应商约定名称，例如 `OPENAI_API_KEY`，不需要用户配置
 
-点击“获取模型列表”会通过本地代理调用供应商的模型列表接口。成功后可以直接勾选多个模型、全选或清空，并为每个供应商指定一个默认模型；获取失败时可以手动填写模型 ID 并测试连接。选择供应商和模型后，可以复制或下载：
+点击“获取模型列表”会通过本地代理调用供应商的模型列表接口。成功后可以直接勾选多个模型、全选或清空，并为每个供应商指定一个默认模型；获取失败时可以手动填写模型 ID 并测试连接。选择供应商和模型后，可以：
 
 - 安装命令
 - `.env.example`
-- `src/llm.ts`
-- `polyllm.config.json`
+- TypeScript 或 Python 完整项目文件树
+- 导入已有 `polyllm.config.json` 后继续编辑
+- 下载单独配置文件或完整项目 ZIP
 
-Studio 不会把 API key 写入配置、日志或生成物，只生成环境变量引用。
+TypeScript 项目支持 npm、pnpm 和 yarn；Python 项目生成 `pyproject.toml`、入口模块和 README，并使用 pip 安装。Studio 不会把 API key 写入配置、日志、ZIP 或源码，只生成环境变量引用。
 
 除 OpenAI、DeepSeek 和 Anthropic 外，Studio 还内置 “OpenAI 兼容厂商” 通道。只要供应商暴露 OpenAI-compatible Chat Completions 接口，例如 Qwen、Moonshot、OpenRouter、Groq 或自建 vLLM 网关，就可以填写 Base URL 后获取或手动填写模型 ID。
 
@@ -117,7 +118,7 @@ Studio 不会把 API key 写入配置、日志或生成物，只生成环境变�
 # 启动可视化配置界面
 npx @you-want/polyllm-cli studio
 
-# 生成 TypeScript 项目
+# 根据配置中的 project.language 生成 TypeScript 或 Python 项目
 node packages/cli/dist/main.js init \
   --config polyllm.config.json \
   --dir ./my-llm-app \
@@ -130,7 +131,7 @@ node packages/cli/dist/main.js doctor --config polyllm.config.json
 node packages/cli/dist/main.js models --config polyllm.config.json
 ```
 
-`init` 会生成 `package.json`、`tsconfig.json`、`polyllm.config.json`、`.env.example`、`.gitignore`、`README.md`、`src/llm.ts` 和 `src/main.ts`。
+`init` 与 Studio 共用同一个项目生成器。TypeScript 会生成 `package.json`、`tsconfig.json` 和 `src/*.ts`；Python 会生成 `pyproject.toml` 和 `src/<module>/*.py`。两种项目都包含配置、环境变量模板、README 和 `.gitignore`。
 
 ```ts
 import { createLLM } from '@you-want/polyllm-core'

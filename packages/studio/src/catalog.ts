@@ -11,6 +11,9 @@ export interface StudioProviderCatalog {
   name: string
   packageName: string
   importName: string
+  pythonPackageName: string
+  pythonModuleName: string
+  pythonImportName: string
   pluginName: string
   apiKeyEnv: string
   models: readonly ModelSpec[]
@@ -22,6 +25,9 @@ export const providerCatalog: readonly StudioProviderCatalog[] = [
     name: 'OpenAI',
     packageName: '@you-want/polyllm-openai',
     importName: 'openAIPlugin',
+    pythonPackageName: 'polyllm-openai',
+    pythonModuleName: 'polyllm_openai',
+    pythonImportName: 'OpenAIPlugin',
     pluginName: 'openai',
     apiKeyEnv: 'OPENAI_API_KEY',
     models: openAIModels,
@@ -31,6 +37,9 @@ export const providerCatalog: readonly StudioProviderCatalog[] = [
     name: 'DeepSeek',
     packageName: '@you-want/polyllm-deepseek',
     importName: 'deepSeekPlugin',
+    pythonPackageName: 'polyllm-deepseek',
+    pythonModuleName: 'polyllm_deepseek',
+    pythonImportName: 'DeepSeekPlugin',
     pluginName: 'deepseek',
     apiKeyEnv: 'DEEPSEEK_API_KEY',
     models: deepSeekModels,
@@ -40,6 +49,9 @@ export const providerCatalog: readonly StudioProviderCatalog[] = [
     name: 'Anthropic',
     packageName: '@you-want/polyllm-anthropic',
     importName: 'anthropicPlugin',
+    pythonPackageName: 'polyllm-anthropic',
+    pythonModuleName: 'polyllm_anthropic',
+    pythonImportName: 'AnthropicPlugin',
     pluginName: 'anthropic',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
     models: anthropicModels,
@@ -49,6 +61,9 @@ export const providerCatalog: readonly StudioProviderCatalog[] = [
     name: 'OpenAI 兼容厂商',
     packageName: '@you-want/polyllm-openai-compatible',
     importName: 'openAICompatiblePlugin',
+    pythonPackageName: 'polyllm-openai-compatible',
+    pythonModuleName: 'polyllm_openai_compatible',
+    pythonImportName: 'OpenAICompatiblePlugin',
     pluginName: 'openai-compatible',
     apiKeyEnv: 'OPENAI_COMPATIBLE_API_KEY',
     requiresBaseUrl: true,

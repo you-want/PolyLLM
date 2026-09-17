@@ -10,7 +10,7 @@ interface CliOptions {
   command?: string
   target?: string
   configPath: string
-  projectName: string
+  projectName?: string
   studioHost: string
   studioPort: number
   openStudio: boolean
@@ -19,7 +19,6 @@ interface CliOptions {
 function parseArgs(argv: readonly string[]): CliOptions {
   const options: CliOptions = {
     configPath: 'polyllm.config.json',
-    projectName: 'polyllm-app',
     studioHost: '127.0.0.1',
     studioPort: 5177,
     openStudio: true,
@@ -30,7 +29,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
     const arg = args[index]
     if (arg === '--config') options.configPath = args[++index] ?? options.configPath
     else if (arg === '--dir') options.target = args[++index]
-    else if (arg === '--name') options.projectName = args[++index] ?? options.projectName
+    else if (arg === '--name') options.projectName = args[++index]
     else if (arg === '--host') options.studioHost = args[++index] ?? options.studioHost
     else if (arg === '--port') {
       const port = Number(args[++index])
@@ -47,9 +46,7 @@ async function initProject(options: CliOptions): Promise<void> {
   const configPath = resolve(options.configPath)
   const config = await readPolyLLMConfig(configPath)
   const target = resolve(options.target ?? '.')
-  const files = generateProjectFiles(config, {
-    projectName: options.projectName,
-  })
+  const files = generateProjectFiles(config, options.projectName ? { projectName: options.projectName } : {})
   for (const file of files) {
     const path = resolve(target, file.path)
     await mkdir(dirname(path), { recursive: true })
@@ -57,9 +54,15 @@ async function initProject(options: CliOptions): Promise<void> {
   }
   console.log(`PolyLLM 项目已生成: ${target}`)
   console.log('下一步:')
-  console.log('  1. pnpm install')
-  console.log('  2. cp .env.example .env')
-  console.log('  3. pnpm build && pnpm start')
+  if (config.project.language === 'python') {
+    console.log('  1. python3 -m venv .venv && . .venv/bin/activate')
+    console.log('  2. python -m pip install -e . && cp .env.example .env')
+    console.log('  3. 按 README 启动生成的 Python 项目')
+  } else {
+    console.log(`  1. ${config.project.packageManager} install`)
+    console.log('  2. cp .env.example .env')
+    console.log(`  3. ${config.project.packageManager === 'npm' ? 'npm run' : config.project.packageManager} build`)
+  }
 }
 
 async function main(): Promise<void> {
