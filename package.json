@@ -1,6 +1,6 @@
 {
   "name": "polyllm-monorepo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "PolyLLM · 万剑归宗 — a plugin-based unified LLM access layer.",

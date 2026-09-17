@@ -1,6 +1,6 @@
 {
   "name": "@you-want/polyllm-openai-compatible",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "PolyLLM OpenAI-compatible provider plugin.",
   "license": "MIT",
@@ -21,7 +21,10 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",

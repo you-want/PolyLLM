@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "polyllm-deepseek"
-version = "0.1.0"
+version = "0.2.0"
 description = "DeepSeek plugin for PolyLLM."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["polyllm-core>=0.1.0", "polyllm-openai-compatible>=0.1.0"]
+dependencies = ["polyllm-core>=0.2.0", "polyllm-openai-compatible>=0.2.0"]
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "PolyLLM contributors" }]

@@ -5,7 +5,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from version import check_versions
+from version import check_versions, read_versions
 
 
 ROOT = Path(__file__).resolve().parent
@@ -19,25 +19,25 @@ PACKAGES: dict[str, dict[str, object]] = {
     "openai": {
         "name": "polyllm-openai",
         "import": "polyllm_openai",
-        "dependencies": {"polyllm-core>=0.1.0"},
+        "dependencies": {"polyllm-core"},
         "keywords": {"llm", "polyllm", "openai"},
     },
     "openai-compatible": {
         "name": "polyllm-openai-compatible",
         "import": "polyllm_openai_compatible",
-        "dependencies": {"polyllm-core>=0.1.0"},
+        "dependencies": {"polyllm-core"},
         "keywords": {"llm", "polyllm", "openai-compatible", "gateway"},
     },
     "deepseek": {
         "name": "polyllm-deepseek",
         "import": "polyllm_deepseek",
-        "dependencies": {"polyllm-core>=0.1.0", "polyllm-openai-compatible>=0.1.0"},
+        "dependencies": {"polyllm-core", "polyllm-openai-compatible"},
         "keywords": {"llm", "polyllm", "deepseek"},
     },
     "anthropic": {
         "name": "polyllm-anthropic",
         "import": "polyllm_anthropic",
-        "dependencies": {"polyllm-core>=0.1.0"},
+        "dependencies": {"polyllm-core"},
         "keywords": {"llm", "polyllm", "anthropic", "claude"},
     },
 }
@@ -63,6 +63,7 @@ REQUIRED_CLASSIFIERS = {
 def main() -> int:
     errors: list[str] = []
     errors.extend(check_versions())
+    package_version = next(iter(read_versions().values()))
 
     for directory, expected in PACKAGES.items():
         package_root = ROOT / "packages" / directory
@@ -84,6 +85,10 @@ def main() -> int:
         build_system = metadata.get("build-system", {})
         package_find = metadata.get("tool", {}).get("setuptools", {}).get("packages", {}).get("find", {})
         dependencies = set(project.get("dependencies", []))
+        expected_dependencies = {
+            f"{dependency}>={package_version}"
+            for dependency in expected["dependencies"]
+        }
         readme = package_root / str(project.get("readme", ""))
         package_where = package_find.get("where", ["src"])
         if isinstance(package_where, list):
@@ -114,7 +119,7 @@ def main() -> int:
             (package_data.get(str(expected["import"])) == ["py.typed"], f"{label}: package-data must include py.typed"),
             (tests_dir.is_dir(), f"{label}: tests directory is missing"),
             (any(tests_dir.glob("test_*.py")), f"{label}: tests directory has no test files"),
-            (dependencies == expected["dependencies"], f"{label}: dependencies must be {sorted(expected['dependencies'])}"),
+            (dependencies == expected_dependencies, f"{label}: dependencies must be {sorted(expected_dependencies)}"),
             (build_system.get("build-backend") == "setuptools.build_meta", f"{label}: build backend must be setuptools"),
             (package_find.get("where") == ["src"], f"{label}: setuptools package root must be src"),
         )
