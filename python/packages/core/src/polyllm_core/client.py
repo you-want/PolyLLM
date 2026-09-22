@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, AsyncIterator, Mapping
 
 from .config import resolve_provider_runtime
@@ -148,7 +149,8 @@ def create_llm(config: ClientConfig | Mapping[str, Any] | None = None, **kwargs:
     if not isinstance(config, ClientConfig):
         raise PolyLLMError("INVALID_CONFIG", "create_llm 配置必须是 ClientConfig 或 dict")
     config = replace_provider_configs(config)
-    resolve_runtime_configs(config)
+    resolved = resolve_runtime_configs(config)
+    config = replace(config, providers=resolved)
     return PolyLLM(config)
 
 
@@ -162,8 +164,6 @@ def _merge_request(
 
 
 def replace_provider_configs(config: ClientConfig) -> ClientConfig:
-    from dataclasses import replace
-
     providers = {
         provider: value if isinstance(value, ProviderConfig) else ProviderConfig(**value)
         for provider, value in config.providers.items()
@@ -226,8 +226,15 @@ def normalize_tool_call(value: Any) -> UnifiedToolCall:
 
 
 def resolve_runtime_configs(config: ClientConfig) -> dict[str, ProviderConfig]:
+    plugins_by_provider = {plugin.provider: plugin for plugin in config.plugins}
     resolved: dict[str, ProviderConfig] = {}
     for provider, provider_config in config.providers.items():
+        plugin = plugins_by_provider.get(provider)
+        if plugin is not None and plugin.allow_missing_api_key and not (
+            provider_config.api_key or provider_config.api_key_env
+        ):
+            resolved[provider] = provider_config
+            continue
         runtime = resolve_provider_runtime(provider, provider_config)
         resolved[provider] = ProviderConfig(
             api_key=runtime.api_key,

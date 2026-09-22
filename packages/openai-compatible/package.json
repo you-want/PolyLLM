@@ -1,6 +1,6 @@
 {
   "name": "@you-want/polyllm-openai-compatible",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "PolyLLM OpenAI-compatible provider plugin.",
   "license": "MIT",

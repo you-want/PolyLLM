@@ -151,6 +151,9 @@ class ChatContext:
 class LLMPlugin(ABC):
     provider: str
     models: tuple[ModelSpec, ...]
+    #: 插件声明"无 API Key 也能工作"（例如本地服务，如 Ollama）。
+    #: 设置为 True 时，`create_llm` 在构造阶段不为该 provider 强制校验 API Key。
+    allow_missing_api_key: bool = False
 
     @abstractmethod
     async def chat(

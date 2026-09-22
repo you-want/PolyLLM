@@ -15,6 +15,8 @@ PACKAGE_NAMES = (
     "openai-compatible",
     "deepseek",
     "anthropic",
+    "gemini",
+    "ollama",
 )
 
 

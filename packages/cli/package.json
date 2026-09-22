@@ -1,6 +1,6 @@
 {
   "name": "@you-want/polyllm-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "PolyLLM project initialization and configuration CLI.",
   "license": "MIT",
@@ -37,6 +37,8 @@
     "@you-want/polyllm-anthropic": "workspace:*",
     "@you-want/polyllm-core": "workspace:*",
     "@you-want/polyllm-deepseek": "workspace:*",
+    "@you-want/polyllm-gemini": "workspace:*",
+    "@you-want/polyllm-ollama": "workspace:*",
     "@you-want/polyllm-openai": "workspace:*",
     "@you-want/polyllm-openai-compatible": "workspace:*",
     "@you-want/polyllm-studio": "workspace:*"

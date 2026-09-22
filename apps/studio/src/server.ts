@@ -1,16 +1,8 @@
 import type { Connect, Plugin } from 'vite'
-import { anthropicPlugin } from '@you-want/polyllm-anthropic'
-import { deepSeekPlugin } from '@you-want/polyllm-deepseek'
-import { openAICompatiblePlugin } from '@you-want/polyllm-openai-compatible'
-import { openAIPlugin } from '@you-want/polyllm-openai'
-import type { ChatContext, LLMPlugin, ProviderConfig, UnifiedRequest } from '@you-want/polyllm-core'
+import { createStudioPluginRegistry } from '@you-want/polyllm-studio'
+import type { ChatContext, ProviderConfig, UnifiedRequest } from '@you-want/polyllm-core'
 
-const plugins = new Map<string, LLMPlugin>([
-  [openAIPlugin.provider, openAIPlugin],
-  [deepSeekPlugin.provider, deepSeekPlugin],
-  [anthropicPlugin.provider, anthropicPlugin],
-  [openAICompatiblePlugin.provider, openAICompatiblePlugin],
-])
+const plugins = createStudioPluginRegistry()
 
 function json(response: unknown, status = 200): Response {
   return new Response(JSON.stringify(response), {

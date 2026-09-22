@@ -13,7 +13,7 @@ export interface StudioProviderSelection {
   defaultModel?: string | undefined
 }
 
-export type StudioProviderId = 'openai' | 'deepseek' | 'anthropic' | 'openai-compatible'
+export type StudioProviderId = 'openai' | 'deepseek' | 'anthropic' | 'gemini' | 'ollama' | 'openai-compatible'
 
 export interface StudioSelection {
   projectName: string

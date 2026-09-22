@@ -15,6 +15,7 @@ import {
   type StudioSelection,
 } from '@you-want/polyllm-studio'
 import { strToU8, zipSync } from 'fflate'
+import { openaiCompatiblePresets, type OpenAICompatiblePreset } from '@you-want/polyllm-openai-compatible'
 import './style.css'
 
 type ProviderId = keyof StudioSelection['providers']
@@ -54,6 +55,8 @@ let providerUi: Record<ProviderId, ProviderUiState> = {
   openai: { apiKey: '', discoveredModels: [], fetching: false, customModel: '', customNotice: '', modelSearch: '' },
   deepseek: { apiKey: '', discoveredModels: [], fetching: false, customModel: '', customNotice: '', modelSearch: '' },
   anthropic: { apiKey: '', discoveredModels: [], fetching: false, customModel: '', customNotice: '', modelSearch: '' },
+  gemini: { apiKey: '', discoveredModels: [], fetching: false, customModel: '', customNotice: '', modelSearch: '' },
+  ollama: { apiKey: '', discoveredModels: [], fetching: false, customModel: '', customNotice: '', modelSearch: '' },
   'openai-compatible': { apiKey: '', discoveredModels: [], fetching: false, customModel: '', customNotice: '', modelSearch: '' },
 }
 
@@ -253,6 +256,16 @@ function isCustomModel(providerId: ProviderId, modelId: string): boolean {
     && !providerUi[providerId].discoveredModels.includes(modelId)
 }
 
+function applyCompatiblePreset(preset: OpenAICompatiblePreset): void {
+  updateProvider('openai-compatible', {
+    baseUrl: preset.baseUrl,
+    apiKeyEnv: preset.apiKeyEnv,
+    models: [...preset.defaultModels],
+    defaultModel: preset.defaultModels[0],
+  })
+  render()
+}
+
 function render(syncInputs = true): void {
   if (syncInputs) syncProviderInputsBeforeRender()
   const selectedModels = generateSelectedModels(selection)
@@ -351,6 +364,19 @@ function render(syncInputs = true): void {
         </div>
 
         <div class="providers">
+          ${activeProvider === 'openai-compatible' ? `
+          <div class="preset-picker" aria-label="OpenAI 兼容预设">
+            <label class="preset-picker-label">
+              <span>预设</span>
+              <select data-action="apply-preset">
+                <option value="">自定义（手动填写）</option>
+                ${openaiCompatiblePresets.map((preset) => `
+                  <option value="${preset.id}">${preset.name} · ${preset.baseUrl}</option>
+                `).join('')}
+              </select>
+            </label>
+          </div>
+          ` : ''}
           ${providerCatalog.filter((provider) => provider.id === activeProvider).map((provider) => {
             const state = selection.providers[provider.id]
             const ui = providerUi[provider.id]
@@ -372,17 +398,28 @@ function render(syncInputs = true): void {
                 </header>
 
                 <div class="provider-fields">
+                  ${provider.id === 'ollama' ? `
+                  <label>
+                    <span>Base URL</span>
+                    <input type="text" placeholder="可选，默认 http://127.0.0.1:11434" value="${escapeHtml(state.baseUrl ?? '')}" data-provider="${provider.id}" data-field="baseUrl" />
+                  </label>
+                  ` : `
                   <label>
                     <span>API Key</span>
                     <input type="password" autocomplete="off" placeholder="切换厂商与刷新保留，关闭标签页清空" value="${escapeHtml(ui.apiKey)}" data-provider="${provider.id}" data-field="apiKey" />
                   </label>
+                  `}
+                  ${provider.id !== 'ollama' ? `
                   <label>
                     <span>Base URL</span>
                     <input type="text" placeholder="${provider.requiresBaseUrl ? '必填，例如 https://api.example.com/v1' : '可选，默认官方地址'}" value="${escapeHtml(state.baseUrl ?? '')}" data-provider="${provider.id}" data-field="baseUrl" />
                   </label>
+                  ` : ''}
                 </div>
                 <p class="env-note">
-                  运行时从环境变量 <code>${escapeHtml(provider.apiKeyEnv)}</code> 读取密钥；Key 只用于本机探测，不写入生成物。
+                  ${provider.id === 'ollama'
+                    ? 'Ollama 为本地服务，无需 API Key；Key 字段会留空，Base URL 默认为 http://127.0.0.1:11434。'
+                    : `运行时从环境变量 <code>${escapeHtml(provider.apiKeyEnv)}</code> 读取密钥；Key 只用于本机探测，不写入生成物。`}
                 </p>
 
                 <div class="model-flow">
@@ -530,12 +567,13 @@ function addModel(providerId: ProviderId, modelId: string): void {
 async function fetchModels(providerId: ProviderId): Promise<void> {
   const provider = selection.providers[providerId]
   const ui = providerUi[providerId]
-  if (!ui.apiKey.trim()) {
+  const catalogEntry = providerCatalog.find((entry) => entry.id === providerId)
+  if (!ui.apiKey.trim() && catalogEntry?.apiKeyEnv !== 'OLLAMA_API_KEY') {
     providerUi[providerId] = { ...ui, error: '请先填写 API Key。' }
     render()
     return
   }
-  if (providerCatalog.find((entry) => entry.id === providerId)?.requiresBaseUrl && !provider.baseUrl?.trim()) {
+  if (catalogEntry?.requiresBaseUrl && !provider.baseUrl?.trim()) {
     providerUi[providerId] = { ...ui, error: 'OpenAI-compatible 厂商必须填写 Base URL。' }
     render()
     return
@@ -574,7 +612,8 @@ async function fetchModels(providerId: ProviderId): Promise<void> {
 async function testModel(providerId: ProviderId, modelOverride?: string): Promise<void> {
   const provider = selection.providers[providerId]
   const ui = providerUi[providerId]
-  if (!ui.apiKey.trim()) {
+  const catalogEntry = providerCatalog.find((entry) => entry.id === providerId)
+  if (!ui.apiKey.trim() && catalogEntry?.apiKeyEnv !== 'OLLAMA_API_KEY') {
     providerUi[providerId] = { ...ui, error: '请先填写 API Key。' }
     render()
     return
@@ -656,6 +695,11 @@ function bindEvents(): void {
   document.querySelector<HTMLSelectElement>('#param-policy')?.addEventListener('change', (event) => {
     selection = { ...selection, paramPolicy: (event.target as HTMLSelectElement).value as ParamPolicy }
     render()
+  })
+
+  document.querySelector<HTMLSelectElement>('[data-action="apply-preset"]')?.addEventListener('change', (event) => {
+    const preset = openaiCompatiblePresets.find((entry) => entry.id === (event.target as HTMLSelectElement).value)
+    if (preset) applyCompatiblePreset(preset)
   })
 
   document.querySelectorAll<HTMLButtonElement>('button[data-action="select-provider"]').forEach((button) => {

@@ -7,6 +7,8 @@ const publishablePackages = [
   '@you-want/polyllm-openai',
   '@you-want/polyllm-deepseek',
   '@you-want/polyllm-anthropic',
+  '@you-want/polyllm-gemini',
+  '@you-want/polyllm-ollama',
   '@you-want/polyllm-openai-compatible',
   '@you-want/polyllm-studio',
   '@you-want/polyllm-cli',

@@ -15,6 +15,15 @@ export function doctorConfig(
 ): DoctorResult {
   const checks = config.plugins.map((providerId) => {
     const provider = config.providers[providerId]
+    if (providerId === 'ollama') {
+      // 本地服务，无需 API Key，只要没有误配置密钥即视为通过
+      const key = provider.apiKey ?? (provider.apiKeyEnv ? environment[provider.apiKeyEnv] : undefined)
+      return {
+        name: `${providerId} 本地服务`,
+        ok: !key || !key.trim(),
+        message: key && key.trim() ? 'Ollama 为本地服务，无需 API Key，建议移除该配置' : '无需 API Key（本地服务）',
+      }
+    }
     const key = provider.apiKey ?? (provider.apiKeyEnv ? environment[provider.apiKeyEnv] : undefined)
     return {
       name: `${providerId} API key`,

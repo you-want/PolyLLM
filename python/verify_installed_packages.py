@@ -29,9 +29,9 @@ def run(command: list[str], cwd: Path) -> str:
 
 def main() -> int:
     wheels = sorted(DIST_ROOT.glob("*.whl"))
-    if len(wheels) != 5:
+    if len(wheels) != 7:
         print(
-            f"Expected 5 wheels in {DIST_ROOT}, found {len(wheels)}. Run: python3 python/build_packages.py",
+            f"Expected 7 wheels in {DIST_ROOT}, found {len(wheels)}. Run: python3 python/build_packages.py",
             file=sys.stderr,
         )
         return 1
@@ -64,8 +64,10 @@ from polyllm_openai import OpenAIPlugin
 from polyllm_deepseek import DeepSeekPlugin
 from polyllm_anthropic import AnthropicPlugin
 from polyllm_openai_compatible import OpenAICompatiblePlugin
+from polyllm_gemini import GeminiPlugin
+from polyllm_ollama import OllamaPlugin
 
-plugins = [OpenAIPlugin(), DeepSeekPlugin(), AnthropicPlugin(), OpenAICompatiblePlugin()]
+plugins = [OpenAIPlugin(), DeepSeekPlugin(), AnthropicPlugin(), OpenAICompatiblePlugin(), GeminiPlugin(), OllamaPlugin()]
 client = create_llm(
     plugins=plugins,
     providers={
@@ -73,6 +75,8 @@ client = create_llm(
         "deepseek": {"api_key": "test"},
         "anthropic": {"api_key": "test"},
         "openai-compatible": {"api_key": "test", "base_url": "http://127.0.0.1"},
+        "gemini": {"api_key": "test"},
+        "ollama": {},
     },
 )
 assert client.get_model_info("openai:gpt-4o-mini") is not None
@@ -83,6 +87,8 @@ for package in (
     "polyllm_deepseek",
     "polyllm_anthropic",
     "polyllm_openai_compatible",
+    "polyllm_gemini",
+    "polyllm_ollama",
 ):
     spec = find_spec(package)
     assert spec is not None and spec.submodule_search_locations

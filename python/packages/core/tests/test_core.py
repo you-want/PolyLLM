@@ -142,6 +142,27 @@ class CoreTests(unittest.TestCase):
         response = asyncio.run(client.chat("test:mini", messages=[{"role": "user", "content": "hi"}]))
         self.assertEqual(response.model, "test-model")
 
+    def test_runtime_resolved_at_construction_not_request_time(self):
+        import os
+        os.environ["POLYLLM_TEST_KEY"] = "from-env"
+        client = create_llm(
+            plugins=[TestPlugin()],
+            providers={"test": {"api_key_env": "POLYLLM_TEST_KEY"}},
+        )
+        os.environ.pop("POLYLLM_TEST_KEY")
+        # 构造时已把环境变量解析写回 provider config，请求时不再读环境变量
+        self.assertEqual(client._config.providers["test"].api_key, "from-env")
+        captured = {}
+
+        class CapturingPlugin(TestPlugin):
+            async def chat(self, request, config, context):
+                captured["api_key"] = config.api_key
+                return await super().chat(request, config, context)
+
+        client3 = create_llm(plugins=[CapturingPlugin()], providers={"test": {"api_key": "k"}})
+        asyncio.run(client3.chat("test-model", messages=[{"role": "user", "content": "hi"}]))
+        self.assertEqual(captured["api_key"], "k")
+
     def test_unlisted_model_resolution(self):
         client = create_llm(
             plugins=[TestPlugin()],

@@ -1,0 +1,42 @@
+{
+  "name": "@you-want/polyllm-ollama",
+  "version": "0.3.0",
+  "type": "module",
+  "description": "PolyLLM Ollama provider plugin (OpenAI-compatible endpoint).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/you-want/PolyLLM",
+    "directory": "packages/ollama"
+  },
+  "homepage": "https://polyllm.raingpt.top",
+  "bugs": {
+    "url": "https://github.com/you-want/PolyLLM/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@you-want/polyllm-core": "workspace:*",
+    "@you-want/polyllm-openai": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

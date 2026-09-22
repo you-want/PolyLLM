@@ -29,7 +29,7 @@ describe('PolyLLM Studio generators', () => {
     expect(generateLLMModule(selection)).toContain('export const defaultModel = "openai:gpt-4o-mini"')
     const files = generateProjectFiles(selection)
     expect(files.map((file) => file.path)).toEqual(expect.arrayContaining(['package.json', 'src/llm.ts', 'src/main.ts']))
-    expect(files.find((file) => file.path === 'package.json')?.content).toContain('^0.2.0')
+    expect(files.find((file) => file.path === 'package.json')?.content).toContain('^0.3.0')
   })
 
   it('generates a runnable Python project', () => {
@@ -49,7 +49,7 @@ describe('PolyLLM Studio generators', () => {
       'src/python_polyllm_app/llm.py',
       'src/python_polyllm_app/main.py',
     ]))
-    expect(files.find((file) => file.path === 'pyproject.toml')?.content).toContain('polyllm-deepseek>=0.2.0,<0.3.0')
+    expect(files.find((file) => file.path === 'pyproject.toml')?.content).toContain('polyllm-deepseek>=0.3.0,<0.4.0')
   })
 
   it('never writes imported API keys into generated files', () => {
@@ -62,5 +62,24 @@ describe('PolyLLM Studio generators', () => {
     const generated = generateProjectFiles(selection).map((file) => file.content).join('\n')
     expect(generated).not.toContain('secret-value')
     expect(generated).toContain('OPENAI_API_KEY')
+  })
+
+  it('generates an Ollama project without forcing an API key', () => {
+    const selection = createDefaultSelection()
+    selection.providers.openai.enabled = false
+    selection.providers.ollama.enabled = true
+    selection.providers.ollama.models = ['llama3.1:8b']
+    selection.providers.ollama.defaultModel = 'llama3.1:8b'
+    const parsed = JSON.parse(generateConfigJson(selection)) as { providers: Record<string, { apiKeyEnv?: string }> }
+    expect(parsed.providers.ollama?.apiKeyEnv).toBeUndefined()
+    const files = generateProjectFiles(selection).map((file) => file.content).join('\n')
+    expect(files).not.toContain('OLLAMA_API_KEY')
+    expect(() =>
+      createSelectionFromConfig({
+        plugins: ['ollama'],
+        providers: { ollama: { baseUrl: 'http://127.0.0.1:11434' } },
+        models: { ollama: ['llama3.1:8b'] },
+      }),
+    ).not.toThrow()
   })
 })

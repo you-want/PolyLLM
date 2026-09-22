@@ -40,6 +40,18 @@ PACKAGES: dict[str, dict[str, object]] = {
         "dependencies": {"polyllm-core"},
         "keywords": {"llm", "polyllm", "anthropic", "claude"},
     },
+    "gemini": {
+        "name": "polyllm-gemini",
+        "import": "polyllm_gemini",
+        "dependencies": {"polyllm-core"},
+        "keywords": {"llm", "polyllm", "gemini", "google"},
+    },
+    "ollama": {
+        "name": "polyllm-ollama",
+        "import": "polyllm_ollama",
+        "dependencies": {"polyllm-core"},
+        "keywords": {"llm", "polyllm", "ollama"},
+    },
 }
 PROJECT_URLS = {
     "Homepage": "https://polyllm.raingpt.top",

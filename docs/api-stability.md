@@ -19,6 +19,8 @@ PolyLLM `0.x` 会继续演进，但发布前必须明确哪些接口属于公共
 - 模型清单，如 `openAIModels`
 - 已公开的 wire 构造和解析函数
 
+`LLMPlugin` 的可选类属性 `allow_missing_api_key`（默认 `False`）自 `0.3.0` 起为公共 API：插件声明本地服务类供应商（如 Ollama）在 `create_llm` 构造阶段不强制校验 API Key；该字段不影响已有插件行为，未声明的插件默认仍需密钥。
+
 CLI 命令 `studio`、`init`、`doctor`、`models` 及其已有参数属于命令行契约。
 
 ## 兼容性规则

@@ -1,13 +1,19 @@
 import type { ModelSpec } from '@you-want/polyllm-core'
 import { anthropicModels } from '@you-want/polyllm-anthropic'
+import { geminiModels } from '@you-want/polyllm-gemini'
+import { ollamaModels } from '@you-want/polyllm-ollama'
 import { deepSeekModels } from '@you-want/polyllm-deepseek'
 import { openAIModels } from '@you-want/polyllm-openai'
 import { openAICompatiblePlugin } from '@you-want/polyllm-openai-compatible'
 import type { StudioProviderId } from './types.js'
 
+export type StudioProviderAuth = 'required' | 'none'
+
 export interface StudioProviderCatalog {
   id: StudioProviderId
   requiresBaseUrl?: boolean
+  /** `none`：本地服务类供应商（如 Ollama），无需 API Key，生成物不写 `apiKeyEnv`。 */
+  auth?: StudioProviderAuth
   name: string
   packageName: string
   importName: string
@@ -55,6 +61,32 @@ export const providerCatalog: readonly StudioProviderCatalog[] = [
     pluginName: 'anthropic',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
     models: anthropicModels,
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    packageName: '@you-want/polyllm-gemini',
+    importName: 'geminiPlugin',
+    pythonPackageName: 'polyllm-gemini',
+    pythonModuleName: 'polyllm_gemini',
+    pythonImportName: 'GeminiPlugin',
+    pluginName: 'gemini',
+    apiKeyEnv: 'GEMINI_API_KEY',
+    models: geminiModels,
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama（本地）',
+    packageName: '@you-want/polyllm-ollama',
+    importName: 'ollamaPlugin',
+    pythonPackageName: 'polyllm-ollama',
+    pythonModuleName: 'polyllm_ollama',
+    pythonImportName: 'OllamaPlugin',
+    pluginName: 'ollama',
+    apiKeyEnv: '',
+    auth: 'none',
+    requiresBaseUrl: false,
+    models: ollamaModels,
   },
   {
     id: 'openai-compatible',

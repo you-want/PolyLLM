@@ -13,6 +13,8 @@ PACKAGES = (
     "openai-compatible",
     "deepseek",
     "anthropic",
+    "gemini",
+    "ollama",
 )
 
 for package in PACKAGES:

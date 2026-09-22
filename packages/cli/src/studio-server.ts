@@ -4,11 +4,8 @@ import { stat } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { dirname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { anthropicPlugin } from '@you-want/polyllm-anthropic'
 import type { ChatContext, LLMPlugin, ProviderConfig, UnifiedRequest } from '@you-want/polyllm-core'
-import { deepSeekPlugin } from '@you-want/polyllm-deepseek'
-import { openAICompatiblePlugin } from '@you-want/polyllm-openai-compatible'
-import { openAIPlugin } from '@you-want/polyllm-openai'
+import { createStudioPluginRegistry } from '@you-want/polyllm-studio'
 
 export interface StudioServerOptions {
   host: string
@@ -16,12 +13,7 @@ export interface StudioServerOptions {
   open: boolean
 }
 
-const plugins = new Map<string, LLMPlugin>([
-  [openAIPlugin.provider, openAIPlugin],
-  [deepSeekPlugin.provider, deepSeekPlugin],
-  [anthropicPlugin.provider, anthropicPlugin],
-  [openAICompatiblePlugin.provider, openAICompatiblePlugin],
-])
+const plugins = createStudioPluginRegistry()
 
 const studioUiRoot = fileURLToPath(new URL('./studio-ui/', import.meta.url))
 const studioUiParent = dirname(studioUiRoot)

@@ -8,7 +8,7 @@ import type {
   StudioSelection,
 } from './types.js'
 
-const generatedVersion = '^0.2.0'
+const generatedVersion = '^0.3.0'
 
 export function packageManagers(language: StudioLanguage): readonly PackageManager[] {
   return language === 'python' ? ['pip'] : ['pnpm', 'npm', 'yarn']
@@ -52,6 +52,8 @@ export function createDefaultSelection(): StudioSelection {
       openai: { enabled: true, apiKeyEnv: 'OPENAI_API_KEY', models: [] },
       deepseek: { enabled: false, apiKeyEnv: 'DEEPSEEK_API_KEY', models: [] },
       anthropic: { enabled: false, apiKeyEnv: 'ANTHROPIC_API_KEY', models: [] },
+      gemini: { enabled: false, apiKeyEnv: 'GEMINI_API_KEY', models: [] },
+      ollama: { enabled: false, apiKeyEnv: '', models: [] },
       'openai-compatible': { enabled: false, apiKeyEnv: 'OPENAI_COMPATIBLE_API_KEY', models: [] },
     },
   }
@@ -63,10 +65,10 @@ export function generateConfig(selection: StudioSelection): StudioConfig {
   const providers: StudioConfig['providers'] = {}
   for (const catalog of enabled) {
     const provider = selection.providers[catalog.id]
-    providers[catalog.pluginName] = {
-      apiKeyEnv: provider.apiKeyEnv || catalog.apiKeyEnv,
-      ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
-    }
+    const providerConfig: ProviderConfig = {}
+    if (catalog.auth !== 'none') providerConfig.apiKeyEnv = provider.apiKeyEnv || catalog.apiKeyEnv
+    if (provider.baseUrl) providerConfig.baseUrl = provider.baseUrl
+    providers[catalog.pluginName] = providerConfig
   }
   const models = Object.fromEntries(enabled.map((provider) => [
     provider.pluginName,
@@ -102,7 +104,10 @@ export function parseStudioConfig(value: unknown): StudioConfig {
   for (const plugin of plugins) {
     const provider = providers[plugin]
     if (!provider) throw new Error(`插件 ${plugin} 缺少 providers.${plugin} 配置`)
-    if (!provider.apiKey && !provider.apiKeyEnv) throw new Error(`providers.${plugin} 必须配置 apiKeyEnv 或 apiKey`)
+    const catalog = getProviderCatalog(plugin)
+    if (catalog.auth !== 'none' && !provider.apiKey && !provider.apiKeyEnv) {
+      throw new Error(`providers.${plugin} 必须配置 apiKeyEnv 或 apiKey`)
+    }
   }
   const models = input.models && typeof input.models === 'object' ? input.models : {}
   for (const [provider, entries] of Object.entries(models)) {
@@ -173,9 +178,10 @@ export function generateInstallCommand(selection: StudioSelection): string {
 }
 
 export function generateEnvTemplate(selection: StudioSelection): string {
-  return `${enabledProviders(selection)
+  const lines = enabledProviders(selection)
+    .filter((provider) => provider.auth !== 'none')
     .map((provider) => `${selection.providers[provider.id].apiKeyEnv || provider.apiKeyEnv}=`)
-    .join('\n')}\n`
+  return `${lines.join('\n')}\n`
 }
 
 function defaultModel(selection: StudioSelection): string {
@@ -191,7 +197,8 @@ function typescriptLLMModule(selection: StudioSelection): string {
   const enabled = enabledProviders(selection)
   const providers = enabled.map((provider) => {
     const config = selection.providers[provider.id]
-    const fields = [`apiKeyEnv: ${quote(config.apiKeyEnv || provider.apiKeyEnv)}`]
+    const fields: string[] = []
+    if (provider.auth !== 'none') fields.push(`apiKeyEnv: ${quote(config.apiKeyEnv || provider.apiKeyEnv)}`)
     if (config.baseUrl) fields.push(`baseUrl: ${quote(config.baseUrl)}`)
     return `    ${quote(provider.pluginName)}: { ${fields.join(', ')} },`
   }).join('\n')
@@ -206,7 +213,8 @@ function pythonLLMModule(selection: StudioSelection): string {
   const enabled = enabledProviders(selection)
   const providers = enabled.map((provider) => {
     const config = selection.providers[provider.id]
-    const fields = [`api_key_env=${quote(config.apiKeyEnv || provider.apiKeyEnv)}`]
+    const fields: string[] = []
+    if (provider.auth !== 'none') fields.push(`api_key_env=${quote(config.apiKeyEnv || provider.apiKeyEnv)}`)
     if (config.baseUrl) fields.push(`base_url=${quote(config.baseUrl)}`)
     return `        ${quote(provider.pluginName)}: ProviderConfig(${fields.join(', ')}),`
   }).join('\n')
@@ -263,8 +271,8 @@ function typescriptProjectFiles(selection: StudioSelection): GeneratedProjectFil
 function pythonProjectFiles(selection: StudioSelection): GeneratedProjectFile[] {
   const distribution = pythonDistributionName(selection.projectName)
   const module = pythonModuleName(selection.projectName)
-  const dependencies = ['polyllm-core>=0.2.0,<0.3.0', 'python-dotenv>=1.0,<2', ...enabledProviders(selection)
-    .map((provider) => `${provider.pythonPackageName}>=0.2.0,<0.3.0`)]
+  const dependencies = ['polyllm-core>=0.3.0,<0.4.0', 'python-dotenv>=1.0,<2', ...enabledProviders(selection)
+    .map((provider) => `${provider.pythonPackageName}>=0.3.0,<0.4.0`)]
   return [
     {
       path: 'pyproject.toml',

@@ -14,6 +14,8 @@ PACKAGE_DIRECTORIES = (
     "openai-compatible",
     "deepseek",
     "anthropic",
+    "gemini",
+    "ollama",
 )
 PACKAGE_NAMES = {
     "core": "polyllm-core",
@@ -21,6 +23,8 @@ PACKAGE_NAMES = {
     "openai-compatible": "polyllm-openai-compatible",
     "deepseek": "polyllm-deepseek",
     "anthropic": "polyllm-anthropic",
+    "gemini": "polyllm-gemini",
+    "ollama": "polyllm-ollama",
 }
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 

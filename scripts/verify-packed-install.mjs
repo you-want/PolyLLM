@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
-const packageDirectories = ['core', 'openai', 'deepseek', 'anthropic', 'openai-compatible', 'studio', 'cli']
+const packageDirectories = ['core', 'openai', 'deepseek', 'anthropic', 'gemini', 'ollama', 'openai-compatible', 'studio', 'cli']
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8' })
@@ -51,16 +51,20 @@ import { createLLM } from '@you-want/polyllm-core'
 import { openAIPlugin } from '@you-want/polyllm-openai'
 import { deepSeekPlugin } from '@you-want/polyllm-deepseek'
 import { anthropicPlugin } from '@you-want/polyllm-anthropic'
+import { geminiPlugin } from '@you-want/polyllm-gemini'
+import { ollamaPlugin } from '@you-want/polyllm-ollama'
 import { openAICompatiblePlugin } from '@you-want/polyllm-openai-compatible'
 import { createDefaultSelection, generateInstallCommand } from '@you-want/polyllm-studio'
 import { generateProjectFiles } from '@you-want/polyllm-cli'
 
 const llm = createLLM({
-  plugins: [openAIPlugin, deepSeekPlugin, anthropicPlugin, openAICompatiblePlugin],
+  plugins: [openAIPlugin, deepSeekPlugin, anthropicPlugin, geminiPlugin, ollamaPlugin, openAICompatiblePlugin],
   providers: {
     openai: { apiKey: 'test' },
     deepseek: { apiKey: 'test' },
     anthropic: { apiKey: 'test' },
+    gemini: { apiKey: 'test' },
+    ollama: {},
     'openai-compatible': { apiKey: 'test', baseUrl: 'http://127.0.0.1' },
   },
 })

@@ -1,5 +1,6 @@
 export * from './types.js'
 export { providerCatalog, getProviderCatalog } from './catalog.js'
+export { createStudioPluginRegistry } from './plugin-registry.js'
 export {
   createDefaultSelection,
   createSelectionFromConfig,

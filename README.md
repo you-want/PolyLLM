@@ -17,14 +17,16 @@ PolyLLM 是一个微内核、插件化的大模型统一接入层。核心只负
 | `@you-want/polyllm-openai` | OpenAI Chat Completions 适配器 |
 | `@you-want/polyllm-deepseek` | DeepSeek OpenAI-compatible 适配器 |
 | `@you-want/polyllm-anthropic` | Anthropic Messages API 适配器 |
-| `@you-want/polyllm-openai-compatible` | 任意 OpenAI-compatible 网关适配器，支持自定义 Base URL 与模型 ID |
+| `@you-want/polyllm-gemini` | Google Gemini REST 适配器（`generateContent` / `streamGenerateContent`） |
+| `@you-want/polyllm-ollama` | Ollama 本地适配器（OpenAI-compatible 端点，无需 API Key） |
+| `@you-want/polyllm-openai-compatible` | 任意 OpenAI-compatible 网关适配器，支持自定义 Base URL 与模型 ID，内置 OpenRouter / Qwen / Moonshot / Groq / vLLM / LiteLLM 预设 |
 | `@you-want/polyllm-studio` | 供应商目录、配置生成器、项目产物生成器 |
 | `@you-want/polyllm-studio-app` | Studio 前端源码与开发服务器（私有包，不需要发布安装） |
-| `@you-want/polyllm-cli` | Studio 启动器、配置校验、项目生成、环境检查 |
+| `@you-want/polyllm-cli` | Studio 启动器、配置校验、项目生成、环境检查、`new-plugin` 自定义插件脚手架 |
 | `@you-want/polyllm-website` | polyllm.raingpt.top 官网（私有包，部署到 GitHub Pages） |
 | `@you-want/polyllm-example-typescript` | TypeScript 示例应用 |
 | `polyllm-core` | Python 核心包 |
-| `polyllm-openai` / `polyllm-deepseek` / `polyllm-anthropic` | Python 官方厂商插件 |
+| `polyllm-openai` / `polyllm-deepseek` / `polyllm-anthropic` / `polyllm-gemini` / `polyllm-ollama` | Python 官方厂商插件 |
 | `polyllm-openai-compatible` | Python 任意 OpenAI-compatible 网关插件 |
 
 ## 架构
@@ -110,7 +112,7 @@ pnpm --filter @you-want/polyllm-studio-app dev
 
 TypeScript 项目支持 npm、pnpm 和 yarn；Python 项目生成 `pyproject.toml`、入口模块和 README，并使用 pip 安装。Studio 不会把 API key 写入配置、日志、ZIP 或源码，只生成环境变量引用。
 
-除 OpenAI、DeepSeek 和 Anthropic 外，Studio 还内置 “OpenAI 兼容厂商” 通道。只要供应商暴露 OpenAI-compatible Chat Completions 接口，例如 Qwen、Moonshot、OpenRouter、Groq 或自建 vLLM 网关，就可以填写 Base URL 后获取或手动填写模型 ID。
+除 OpenAI、DeepSeek 和 Anthropic 外，Studio 还内置 Gemini、Ollama 与 “OpenAI 兼容厂商” 通道。Ollama 为本地服务，默认地址 `http://127.0.0.1:11434`，无需 API Key，Studio 生成的配置与 `.env.example` 不会写入密钥。只要供应商暴露 OpenAI-compatible Chat Completions 接口，例如 Qwen、Moonshot、OpenRouter、Groq 或自建 vLLM / LiteLLM 网关，就可以填写 Base URL 后获取或手动填写模型 ID；也可在 OpenAI 兼容面板选择内置预设（OpenRouter / Qwen / Moonshot / Groq / vLLM / LiteLLM），自动填充 Base URL、密钥环境变量名与默认模型。
 
 ## CLI
 
@@ -124,11 +126,14 @@ node packages/cli/dist/main.js init \
   --dir ./my-llm-app \
   --name my-llm-app
 
-# 检查 API key 环境变量
+# 检查 API key 环境变量（Ollama 无需密钥，仅提示）
 node packages/cli/dist/main.js doctor --config polyllm.config.json
 
 # 列出已启用插件支持的模型
 node packages/cli/dist/main.js models --config polyllm.config.json
+
+# 生成一个可发布的自定义供应商插件骨架
+npx @you-want/polyllm-cli new-plugin --provider acme --provider-name Acme --dir ./packages/acme
 ```
 
 `init` 与 Studio 共用同一个项目生成器。TypeScript 会生成 `package.json`、`tsconfig.json` 和 `src/*.ts`；Python 会生成 `pyproject.toml` 和 `src/<module>/*.py`。两种项目都包含配置、环境变量模板、README 和 `.gitignore`。

@@ -26,6 +26,12 @@ importers:
       '@you-want/polyllm-deepseek':
         specifier: workspace:*
         version: link:../../packages/deepseek
+      '@you-want/polyllm-gemini':
+        specifier: workspace:*
+        version: link:../../packages/gemini
+      '@you-want/polyllm-ollama':
+        specifier: workspace:*
+        version: link:../../packages/ollama
       '@you-want/polyllm-openai':
         specifier: workspace:*
         version: link:../../packages/openai
@@ -104,6 +110,12 @@ importers:
       '@you-want/polyllm-deepseek':
         specifier: workspace:*
         version: link:../deepseek
+      '@you-want/polyllm-gemini':
+        specifier: workspace:*
+        version: link:../gemini
+      '@you-want/polyllm-ollama':
+        specifier: workspace:*
+        version: link:../ollama
       '@you-want/polyllm-openai':
         specifier: workspace:*
         version: link:../openai
@@ -152,6 +164,22 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.2)
 
+  packages/gemini:
+    dependencies:
+      '@you-want/polyllm-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.18.0
+        version: 22.20.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.2)
+
   packages/integration:
     dependencies:
       '@you-want/polyllm-anthropic':
@@ -163,12 +191,37 @@ importers:
       '@you-want/polyllm-deepseek':
         specifier: workspace:*
         version: link:../deepseek
+      '@you-want/polyllm-gemini':
+        specifier: workspace:*
+        version: link:../gemini
+      '@you-want/polyllm-ollama':
+        specifier: workspace:*
+        version: link:../ollama
       '@you-want/polyllm-openai':
         specifier: workspace:*
         version: link:../openai
       '@you-want/polyllm-openai-compatible':
         specifier: workspace:*
         version: link:../openai-compatible
+    devDependencies:
+      '@types/node':
+        specifier: ^22.18.0
+        version: 22.20.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.2)
+
+  packages/ollama:
+    dependencies:
+      '@you-want/polyllm-core':
+        specifier: workspace:*
+        version: link:../core
+      '@you-want/polyllm-openai':
+        specifier: workspace:*
+        version: link:../openai
     devDependencies:
       '@types/node':
         specifier: ^22.18.0
@@ -226,6 +279,12 @@ importers:
       '@you-want/polyllm-deepseek':
         specifier: workspace:*
         version: link:../deepseek
+      '@you-want/polyllm-gemini':
+        specifier: workspace:*
+        version: link:../gemini
+      '@you-want/polyllm-ollama':
+        specifier: workspace:*
+        version: link:../ollama
       '@you-want/polyllm-openai':
         specifier: workspace:*
         version: link:../openai

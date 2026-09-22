@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { parsePolyLLMConfig, readPolyLLMConfig } from './config.js'
 import { doctorConfig, listSelectedModels } from './doctor.js'
+import { generateNewPluginFiles } from './new-plugin.js'
 import { generateProjectFiles } from './project.js'
 import { startStudioServer } from './studio-server.js'
 
@@ -14,6 +15,8 @@ interface CliOptions {
   studioHost: string
   studioPort: number
   openStudio: boolean
+  providerId?: string
+  providerName?: string
 }
 
 function parseArgs(argv: readonly string[]): CliOptions {
@@ -37,6 +40,8 @@ function parseArgs(argv: readonly string[]): CliOptions {
       options.studioPort = port
     }
     else if (arg === '--no-open') options.openStudio = false
+    else if (arg === '--provider') options.providerId = args[++index]
+    else if (arg === '--provider-name') options.providerName = args[++index]
     else throw new Error(`未知参数: ${arg}`)
   }
   return options
@@ -65,10 +70,31 @@ async function initProject(options: CliOptions): Promise<void> {
   }
 }
 
+async function newPlugin(options: CliOptions): Promise<void> {
+  const providerId = options.providerId
+  if (!providerId) throw new Error('new-plugin 需要 --provider <id> 参数')
+  const target = resolve(options.target ?? `packages/${providerId}`)
+  const files = generateNewPluginFiles({
+    providerId,
+    providerName: options.providerName ?? providerId,
+    targetDir: target,
+  })
+  for (const file of files) {
+    const path = resolve(target, file.path)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, file.content, 'utf8')
+  }
+  console.log(`插件模板已生成: ${target}`)
+  console.log('下一步:')
+  console.log('  1. 实现 wire 协议与模型清单')
+  console.log(`  2. pnpm --filter @you-want/polyllm-${providerId} build test typecheck`)
+  console.log('  3. 参照 README.md 的检查清单完成发布前验收')
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2))
   if (!options.command || ['help', '--help', '-h'].includes(options.command)) {
-    console.log(`PolyLLM CLI\n\n用法:\n  polyllm studio [--host 127.0.0.1] [--port 5177] [--no-open]\n  polyllm init --config polyllm.config.json --dir ./my-app\n  polyllm doctor --config polyllm.config.json\n  polyllm models --config polyllm.config.json\n`)
+    console.log(`PolyLLM CLI\n\n用法:\n  polyllm studio [--host 127.0.0.1] [--port 5177] [--no-open]\n  polyllm init --config polyllm.config.json --dir ./my-app\n  polyllm doctor --config polyllm.config.json\n  polyllm models --config polyllm.config.json\n  polyllm new-plugin --provider <id> [--provider-name <Name>] [--dir ./packages/<id>]\n`)
     return
   }
 
@@ -83,6 +109,11 @@ async function main(): Promise<void> {
 
   if (options.command === 'init') {
     await initProject(options)
+    return
+  }
+
+  if (options.command === 'new-plugin') {
+    await newPlugin(options)
     return
   }
 

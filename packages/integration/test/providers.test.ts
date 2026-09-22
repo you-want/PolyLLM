@@ -2,6 +2,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createLLM, type LLMPlugin, type ProviderConfig } from '@you-want/polyllm-core'
 import { anthropicPlugin } from '@you-want/polyllm-anthropic'
+import { geminiPlugin } from '@you-want/polyllm-gemini'
+import { ollamaPlugin } from '@you-want/polyllm-ollama'
 import { deepSeekPlugin } from '@you-want/polyllm-deepseek'
 import { openAICompatiblePlugin } from '@you-want/polyllm-openai-compatible'
 import { openAIPlugin } from '@you-want/polyllm-openai'
@@ -59,9 +61,42 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
     return
   }
 
+  // Ollama 原生模型发现端点（scoped under /ollama）
+  if (url.startsWith('/ollama/api/tags')) {
+    requestRecords.push({ url, headers: request.headers, body: {} })
+    sendJson(response, { models: [{ name: 'mock-model', modified_at: '2024-01-01' }] })
+    return
+  }
+
+  // Gemini 模型发现端点（scoped under /gemini，GET）
+  if (url.startsWith('/gemini/models') && url.endsWith('/models')) {
+    requestRecords.push({ url, headers: request.headers, body: {} })
+    sendJson(response, { models: [{ name: 'models/mock-model', displayName: 'Mock' }] })
+    return
+  }
+
   if (url.endsWith('/models')) {
     requestRecords.push({ url, headers: request.headers, body: {} })
     sendJson(response, { data: [{ id: 'mock-model', owned_by: 'integration' }] })
+    return
+  }
+
+  // Gemini 生成内容端点（scoped under /gemini）
+  const geminiMatch = url.match(/\/gemini\/models\/([^:]+):(generateContent|streamGenerateContent)(\?alt=sse)?$/)
+  if (geminiMatch) {
+    const body = await readBody(request)
+    requestRecords.push({ url, headers: request.headers, body })
+    if (geminiMatch[2] === 'streamGenerateContent' && geminiMatch[3] === '?alt=sse') {
+      sendSse(response, [
+        { candidates: [{ content: { parts: [{ text: 'hello' }] } }] },
+        { candidates: [{ content: { parts: [] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 } },
+      ], false)
+      return
+    }
+    sendJson(response, {
+      candidates: [{ content: { parts: [{ text: 'hello' }] }, finishReason: 'STOP' }],
+      usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
+    })
     return
   }
 
@@ -240,5 +275,57 @@ describe('provider HTTP integration', () => {
       config,
       { model: context.model, signal: controller.signal },
     )).rejects.toThrow()
+  })
+
+  it('Gemini strips the models/ resource prefix from discovered models and chats through it', async () => {
+    const config: ProviderConfig = { apiKey: 'integration-key', baseUrl: `${serverUrl}/gemini` }
+    const discovered = await geminiPlugin.listModels?.(config)
+    expect(discovered?.[0]?.id).toBe('mock-model')
+    const llm = createLLM({
+      plugins: [geminiPlugin],
+      providers: { gemini: config },
+      allowUnlistedModels: true,
+    })
+    const response = await llm.chat('gemini:mock-model', {
+      messages: [{ role: 'user', content: 'hello' }],
+    })
+    expect(response.choices[0]?.message.content).toBe('hello')
+  })
+
+  it('Gemini streams over ?alt=sse and parses data: payloads', async () => {
+    const config: ProviderConfig = { apiKey: 'integration-key', baseUrl: `${serverUrl}/gemini` }
+    const llm = createLLM({
+      plugins: [geminiPlugin],
+      providers: { gemini: config },
+      allowUnlistedModels: true,
+    })
+    const chunks = []
+    for await (const chunk of llm.chatStream('gemini:mock-model', {
+      messages: [{ role: 'user', content: 'hello' }],
+    })) chunks.push(chunk)
+    expect(chunks.some((chunk) => chunk.delta.content === 'hello')).toBe(true)
+    expect(chunks.at(-1)?.finishReason).toBe('stop')
+    const streamRequest = requestRecords.find((record) => record.url.includes('streamGenerateContent?alt=sse'))
+    expect(streamRequest).toBeDefined()
+  })
+
+  it('Ollama discovers via /api/tags, chats without a key, and honors custom headers', async () => {
+    requestRecords.length = 0
+    const config: ProviderConfig = { baseUrl: `${serverUrl}/ollama`, headers: { 'x-ollama-auth': 'yes' } }
+    const discovered = await ollamaPlugin.listModels?.(config)
+    expect(discovered?.[0]?.id).toBe('mock-model')
+    expect(requestRecords.at(-1)?.headers['x-ollama-auth']).toBe('yes')
+
+    const llm = createLLM({
+      plugins: [ollamaPlugin],
+      providers: { ollama: config },
+      allowUnlistedModels: true,
+    })
+    const response = await llm.chat('ollama:mock-model', {
+      messages: [{ role: 'user', content: 'hello' }],
+    })
+    expect(response.choices[0]?.message.content).toBe('hello')
+    const chatRecord = requestRecords.find((record) => record.url.endsWith('/v1/chat/completions'))
+    expect(chatRecord?.headers['x-ollama-auth']).toBe('yes')
   })
 })

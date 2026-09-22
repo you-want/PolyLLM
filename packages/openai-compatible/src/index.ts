@@ -147,3 +147,5 @@ export const openAICompatiblePlugin: LLMPlugin = {
     }
   },
 }
+
+export { openaiCompatiblePresets, type OpenAICompatiblePreset } from './presets.js'
