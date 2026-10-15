@@ -12,7 +12,7 @@ on:
           - testpypi
           - pypi
       package_batch:
-        description: Package batch (use bootstrap-3 for the new 0.3.0 projects)
+        description: Package batch (use all for coordinated releases; bootstrap-3 only for isolated new projects)
         type: choice
         required: true
         default: all

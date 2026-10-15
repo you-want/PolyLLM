@@ -132,7 +132,7 @@ package_batch: all
 confirmation: PUBLISH_TESTPYPI
 ```
 
-`polyllm-gemini` 与 `polyllm-ollama` 是 0.3.0 新增的 PyPI 项目。首次为这两个项目配置 Trusted Publisher 后，分别使用 `package_batch: bootstrap-3` 完成 TestPyPI 和 PyPI 发布；后续版本统一使用 `package_batch: all`。
+`polyllm-gemini` 与 `polyllm-ollama` 是 0.3.0 新增的 PyPI 项目。先为这两个项目配置 Trusted Publisher，再使用 `package_batch: all` 发布完整的 7 个包。`bootstrap-3` 只用于单独演练新项目的 Trusted Publisher；不要在同一版本先运行它再运行 `all`，否则 Gemini/Ollama 会重复上传。
 
 发布成功后，在全新虚拟环境中验证：
 
