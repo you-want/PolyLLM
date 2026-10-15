@@ -1,5 +1,11 @@
 # @you-want/polyllm-anthropic
 
+## 0.3.0
+
+### Patch Changes
+
+- Updated provider runtime handling for the 0.3.0 plugin ecosystem.
+
 ## 0.2.0
 
 ### Minor Changes

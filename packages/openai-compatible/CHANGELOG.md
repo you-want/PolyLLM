@@ -1,5 +1,15 @@
 # @you-want/polyllm-openai-compatible
 
+## 0.3.0
+
+### Minor Changes
+
+- Added OpenRouter, Qwen, Moonshot, Groq, vLLM, and LiteLLM presets.
+
+### Patch Changes
+
+- Updated the package for the coordinated 0.3.0 provider release.
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,15 @@
 # @you-want/polyllm-cli
 
+## 0.3.0
+
+### Minor Changes
+
+- Added the `new-plugin` provider scaffold command.
+
+### Patch Changes
+
+- Updated generated project dependencies for the 0.3.0 provider release.
+
 ## 0.2.0
 
 ### Minor Changes

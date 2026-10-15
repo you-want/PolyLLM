@@ -173,7 +173,7 @@ class GeminiPlugin(LLMPlugin):
             provider=self.provider,
             capabilities=ModelCapabilities(
                 streaming=True,
-                vision=True,
+                vision=False,
                 function_calling=True,
                 json_mode=False,
                 system_prompt=True,

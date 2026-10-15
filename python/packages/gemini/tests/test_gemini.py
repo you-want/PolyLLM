@@ -83,6 +83,10 @@ class GeminiTests(unittest.TestCase):
             )
         self.assertIn("UNSUPPORTED_PARAMETER", getattr(caught.exception, "code", str(caught.exception)))
 
+    def test_dynamic_model_disables_vision_until_supported(self):
+        spec = GeminiPlugin().create_model_spec("custom-gemini")
+        self.assertFalse(spec.capabilities.vision)
+
     def test_stream_parses_sse(self):
         first = json.dumps({"candidates": [{"content": {"parts": [{"text": "好"}]}}]})
         last = json.dumps({

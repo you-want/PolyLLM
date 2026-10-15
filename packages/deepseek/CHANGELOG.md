@@ -1,5 +1,11 @@
 # @you-want/polyllm-deepseek
 
+## 0.3.0
+
+### Patch Changes
+
+- Updated the package for the coordinated 0.3.0 provider release.
+
 ## 0.2.0
 
 ### Minor Changes

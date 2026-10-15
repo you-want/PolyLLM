@@ -1,5 +1,11 @@
 # @you-want/polyllm-core
 
+## 0.3.0
+
+### Patch Changes
+
+- Added the optional `allow_missing_api_key` plugin capability for local providers such as Ollama.
+
 ## 0.2.0
 
 ### Minor Changes

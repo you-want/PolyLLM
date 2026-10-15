@@ -1,5 +1,15 @@
 # @you-want/polyllm-studio
 
+## 0.3.0
+
+### Minor Changes
+
+- Added Gemini and Ollama provider cards and OpenAI-compatible preset selection.
+
+### Patch Changes
+
+- Shared the provider registry between Studio and the published CLI service.
+
 ## 0.2.0
 
 ### Minor Changes

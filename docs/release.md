@@ -82,6 +82,8 @@ Python 发布使用 PyPI Trusted Publishing，不需要在 GitHub 保存 PyPI AP
 | `polyllm-openai-compatible` | `testpypi-openai-compatible` | `pypi-openai-compatible` |
 | `polyllm-deepseek` | `testpypi-deepseek` | `pypi-deepseek` |
 | `polyllm-anthropic` | `testpypi-anthropic` | `pypi-anthropic` |
+| `polyllm-gemini` | `testpypi-gemini` | `pypi-gemini` |
+| `polyllm-ollama` | `testpypi-ollama` | `pypi-ollama` |
 
 TestPyPI/PyPI 每个账户同时最多保留 3 个 Pending Trusted Publisher，因此首次创建项目必须使用两批发布。
 
@@ -130,17 +132,21 @@ package_batch: all
 confirmation: PUBLISH_TESTPYPI
 ```
 
+`polyllm-gemini` 与 `polyllm-ollama` 是 0.3.0 新增的 PyPI 项目。首次为这两个项目配置 Trusted Publisher 后，分别使用 `package_batch: bootstrap-3` 完成 TestPyPI 和 PyPI 发布；后续版本统一使用 `package_batch: all`。
+
 发布成功后，在全新虚拟环境中验证：
 
 ```bash
 python3 -m venv /tmp/polyllm-testpypi
 /tmp/polyllm-testpypi/bin/python -m pip install \
   --index-url https://test.pypi.org/simple/ \
-  polyllm-core==0.1.0 \
-  polyllm-openai==0.1.0 \
-  polyllm-openai-compatible==0.1.0 \
-  polyllm-deepseek==0.1.0 \
-  polyllm-anthropic==0.1.0
+  polyllm-core==0.3.0 \
+  polyllm-openai==0.3.0 \
+  polyllm-openai-compatible==0.3.0 \
+  polyllm-deepseek==0.3.0 \
+  polyllm-anthropic==0.3.0 \
+  polyllm-gemini==0.3.0 \
+  polyllm-ollama==0.3.0
 ```
 
 验证通过后再正式发布：
