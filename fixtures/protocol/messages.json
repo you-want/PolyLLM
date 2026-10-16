@@ -1,0 +1,62 @@
+{
+  "description": "Scenario group 1: roles, text + image parts, system prompt. Shared input for TS and Python fixture runners; expectations are normalized camelCase JSON (docs/protocol.md 2.2).",
+  "schema": "schemas/unified-request.json",
+  "cases": [
+    {
+      "id": "messages-system-and-parts",
+      "valid": true,
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": [
+          { "role": "system", "content": "You are a helpful assistant." },
+          {
+            "role": "user",
+            "content": [
+              { "type": "text", "text": "Describe this image." },
+              { "type": "image_url", "imageUrl": { "url": "https://example.com/a.png", "detail": "low" } }
+            ]
+          },
+          { "role": "assistant", "content": "A picture." },
+          { "role": "tool", "toolCallId": "call_1", "content": "{\"result\": 42}" }
+        ],
+        "temperature": 0.2,
+        "maxTokens": 256,
+        "topP": 0.9
+      },
+      "expectations": {
+        "messagesCount": 4,
+        "userContentParts": 2,
+        "toolMessageHasToolCallId": true
+      }
+    },
+    {
+      "id": "messages-empty-array-invalid",
+      "valid": false,
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": []
+      }
+    },
+    {
+      "id": "tool-message-missing-tool-call-id-invalid",
+      "valid": false,
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": [
+          { "role": "user", "content": "hi" },
+          { "role": "tool", "content": "{\"ok\": true}" }
+        ]
+      }
+    },
+    {
+      "id": "image-part-missing-imageUrl-invalid",
+      "valid": false,
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": [
+          { "role": "user", "content": [{ "type": "image_url" }] }
+        ]
+      }
+    }
+  ]
+}

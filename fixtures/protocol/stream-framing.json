@@ -1,0 +1,54 @@
+{
+  "description": "Scenario group 4: SSE/NDJSON framing, CRLF, multi-line data, UTF-8 boundary, stream end and mid-stream failure. Each raw body is what the wire parser receives; expectations are the normalized chunk sequence a parser must emit. UTF-8 boundary cases use literal JSON escapes.",
+  "schema": "schemas/unified-stream-chunk.json",
+  "cases": [
+    {
+      "id": "sse-lf-split-event",
+      "valid": true,
+      "wire": "text/event-stream",
+      "raw": "data: {\"delta_text\":\"He\"}\n\ndata: {\"delta_text\":\"llo\"}\n\ndata: {\"done\":true}\n\n",
+      "expectedChunks": [
+        { "delta": { "content": "He" } },
+        { "delta": { "content": "Llo" } },
+        { "delta": {}, "finishReason": "stop" }
+      ]
+    },
+    {
+      "id": "sse-crlf-and-multi-line-data",
+      "valid": true,
+      "wire": "text/event-stream",
+      "raw": "data: {\"delta_text\":\"a\"}\r\ndata: {\"delta_text\":\"b\"}\r\n\r\n",
+      "expectedChunks": [
+        { "delta": { "content": "a" } },
+        { "delta": { "content": "b" } }
+      ]
+    },
+    {
+      "id": "ndjson-lines",
+      "valid": true,
+      "wire": "application/x-ndjson",
+      "raw": "{\"delta_text\":\"x\"}\n{\"delta_text\":\"y\",\"finish\":\"stop\"}\n",
+      "expectedChunks": [
+        { "delta": { "content": "x" } },
+        { "delta": { "content": "y" }, "finishReason": "stop" }
+      ]
+    },
+    {
+      "id": "utf8-boundary-no-split",
+      "valid": true,
+      "wire": "text/event-stream",
+      "raw": "data: {\"delta_text\":\"☃\"}\n\n",
+      "expectedChunks": [
+        { "delta": { "content": "❄" } }
+      ]
+    },
+    {
+      "id": "mid-stream-truncated-json-invalid",
+      "valid": false,
+      "wire": "text/event-stream",
+      "raw": "data: {\"delta_text\":\"abc",
+      "expectedChunks": [],
+      "error": { "category": "parse" }
+    }
+  ]
+}

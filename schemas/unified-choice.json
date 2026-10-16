@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "polyllm/0.4.0/schemas/unified-choice.json",
+  "title": "PolyLLM UnifiedChoice (protocol 0.4.0 draft)",
+  "type": "object",
+  "required": ["index", "message", "finishReason"],
+  "properties": {
+    "index": { "type": "integer", "minimum": 0 },
+    "message": { "$ref": "unified-message.json" },
+    "finishReason": { "$ref": "finish-reason.json" }
+  }
+}

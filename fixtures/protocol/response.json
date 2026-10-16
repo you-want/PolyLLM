@@ -1,0 +1,84 @@
+{
+  "description": "Scenario group 2: normal response, usage absent (zero + marker), finish reason mapping. The normalized response is what both language runners must produce from the same source event stream; finish reasons use the unified enum (docs/protocol.md 2.3, 4.2).",
+  "schema": "schemas/unified-response.json",
+  "cases": [
+    {
+      "id": "response-full-usage",
+      "valid": true,
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-4o-mini",
+        "choices": [
+          {
+            "index": 0,
+            "message": { "role": "assistant", "content": "hello" },
+            "finishReason": "stop"
+          }
+        ],
+        "usage": { "promptTokens": 12, "completionTokens": 8, "totalTokens": 20 }
+      },
+      "expectations": {
+        "usageTotal": 20,
+        "finishReason": "stop",
+        "providerMetadata": null
+      }
+    },
+    {
+      "id": "response-usage-absent-defaults",
+      "valid": true,
+      "response": {
+        "id": "resp_2",
+        "model": "mock-model",
+        "choices": [
+          {
+            "index": 0,
+            "message": { "role": "assistant", "content": "ok" },
+            "finishReason": "stop"
+          }
+        ],
+        "usage": { "promptTokens": 0, "completionTokens": 0, "totalTokens": 0 },
+        "providerMetadata": { "usageUnavailable": true }
+      },
+      "expectations": {
+        "usageTotal": 0,
+        "finishReason": "stop",
+        "providerMetadata": { "usageUnavailable": true }
+      }
+    },
+    {
+      "id": "response-length-finish",
+      "valid": true,
+      "response": {
+        "id": "resp_3",
+        "model": "gpt-4o-mini",
+        "choices": [
+          {
+            "index": 0,
+            "message": { "role": "assistant", "content": "trunc..." },
+            "finishReason": "length"
+          }
+        ],
+        "usage": { "promptTokens": 4, "completionTokens": 64, "totalTokens": 68 }
+      },
+      "expectations": {
+        "finishReason": "length",
+        "usageTotal": 68
+      }
+    },
+    {
+      "id": "response-missing-usage-invalid",
+      "valid": false,
+      "response": {
+        "id": "resp_4",
+        "model": "gpt-4o-mini",
+        "choices": [
+          {
+            "index": 0,
+            "message": { "role": "assistant", "content": "x" },
+            "finishReason": "stop"
+          }
+        ]
+      }
+    }
+  ]
+}

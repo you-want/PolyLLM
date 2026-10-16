@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "polyllm/0.4.0/schemas/unified-response.json",
+  "title": "PolyLLM UnifiedResponse (protocol 0.4.0 draft)",
+  "type": "object",
+  "required": ["id", "model", "choices", "usage"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "model": { "type": "string" },
+    "choices": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "unified-choice.json" }
+    },
+    "usage": { "$ref": "unified-usage.json" },
+    "providerMetadata": { "type": "object" }
+  }
+}

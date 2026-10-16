@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "polyllm/0.4.0/schemas/unified-tool.json",
+  "title": "PolyLLM UnifiedTool (protocol 0.4.0 draft)",
+  "type": "object",
+  "required": ["type", "function"],
+  "properties": {
+    "type": { "const": "function" },
+    "function": {
+      "type": "object",
+      "required": ["name", "description", "parameters"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "parameters": { "type": "object" }
+      }
+    }
+  }
+}

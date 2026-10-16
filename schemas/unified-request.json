@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "polyllm/0.4.0/schemas/unified-request.json",
+  "title": "PolyLLM UnifiedRequest (protocol 0.4.0 draft)",
+  "type": "object",
+  "required": ["model", "messages"],
+  "properties": {
+    "model": { "type": "string", "minLength": 1 },
+    "messages": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "unified-message.json" }
+    },
+    "temperature": { "type": "number", "minimum": 0 },
+    "maxTokens": { "type": "integer", "minimum": 1 },
+    "topP": { "type": "number", "minimum": 0, "maximum": 1 },
+    "stream": { "type": "boolean" },
+    "jsonMode": { "type": "boolean" },
+    "tools": {
+      "type": "array",
+      "items": { "$ref": "unified-tool.json" }
+    }
+  }
+}

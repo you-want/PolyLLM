@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "polyllm/0.4.0/schemas/unified-content-part.json",
+  "title": "PolyLLM UnifiedContentPart (protocol 0.4.0 draft)",
+  "type": "object",
+  "required": ["type"],
+  "properties": {
+    "type": { "enum": ["text", "image_url"] },
+    "text": { "type": "string" },
+    "imageUrl": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "minLength": 1 },
+        "detail": { "enum": ["auto", "low", "high"] }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "text" } }, "required": ["type"] },
+      "then": { "required": ["text"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "image_url" } }, "required": ["type"] },
+      "then": { "required": ["imageUrl"] }
+    }
+  ]
+}

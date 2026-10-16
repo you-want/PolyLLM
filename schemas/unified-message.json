@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "polyllm/0.4.0/schemas/unified-message.json",
+  "title": "PolyLLM UnifiedMessage (protocol 0.4.0 draft)",
+  "type": "object",
+  "required": ["role", "content"],
+  "properties": {
+    "role": { "enum": ["system", "user", "assistant", "tool"] },
+    "content": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "$ref": "unified-content-part.json" } }
+      ]
+    },
+    "name": { "type": "string" },
+    "toolCallId": { "type": "string" },
+    "toolCalls": {
+      "type": "array",
+      "items": { "$ref": "unified-tool-call.json" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "role": { "const": "tool" } } },
+      "then": { "required": ["toolCallId"] }
+    }
+  ]
+}

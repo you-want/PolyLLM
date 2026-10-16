@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "polyllm/0.4.0/schemas/unified-stream-chunk.json",
+  "title": "PolyLLM UnifiedStreamChunk (protocol 0.4.0 draft)",
+  "type": "object",
+  "required": ["id", "model", "delta"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "model": { "type": "string" },
+    "delta": {
+      "type": "object",
+      "properties": {
+        "role": { "enum": ["system", "user", "assistant", "tool"] },
+        "content": { "type": "string" },
+        "toolCalls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "const": "function" },
+              "function": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "arguments": { "type": "string" }
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "usage": { "$ref": "unified-usage.json" },
+    "finishReason": { "$ref": "finish-reason.json" },
+    "providerMetadata": { "type": "object" }
+  }
+}

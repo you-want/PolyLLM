@@ -1,0 +1,114 @@
+{
+  "description": "Scenario group 3: tool declaration, multiple tool calls, chunked arguments, tool result round-trip. Streaming tool-arg reassembly follows docs/protocol.md 2.1: same-id chunks append in arrival order; no-id chunks append by first-appearance index; final arguments must parse as JSON.",
+  "schema": "schemas/unified-request.json",
+  "cases": [
+    {
+      "id": "tools-echo-roundtrip",
+      "valid": true,
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": [
+          { "role": "user", "content": "echo hello" }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "echo",
+              "description": "Echoes input back",
+              "parameters": {
+                "type": "object",
+                "properties": { "text": { "type": "string" } },
+                "required": ["text"]
+              }
+            }
+          }
+        ]
+      },
+      "response": {
+        "id": "resp_tools_1",
+        "model": "gpt-4o-mini",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": { "name": "echo", "arguments": "{\"text\":\"hello\"}" }
+                }
+              ]
+            },
+            "finishReason": "tool_calls"
+          }
+        ],
+        "usage": { "promptTokens": 6, "completionTokens": 9, "totalTokens": 15 }
+      },
+      "toolResultMessage": {
+        "role": "tool",
+        "toolCallId": "call_a",
+        "content": "hello"
+      },
+      "expectations": {
+        "finishReason": "tool_calls",
+        "toolCallCount": 1,
+        "argumentsParseOk": true
+      }
+    },
+    {
+      "id": "stream-chunked-arguments",
+      "valid": true,
+      "chunks": [
+        {
+          "id": "resp_stream",
+          "model": "gpt-4o-mini",
+          "delta": {
+            "role": "assistant",
+            "toolCalls": [
+              { "id": "call_b", "type": "function", "function": { "name": "echo", "arguments": "{\"te" } }
+            ]
+          }
+        },
+        {
+          "id": "resp_stream",
+          "model": "gpt-4o-mini",
+          "delta": { "toolCalls": [{ "id": "call_b", "type": "function", "function": { "arguments": "xt\":\"he" } }] }
+        },
+        {
+          "id": "resp_stream",
+          "model": "gpt-4o-mini",
+          "delta": { "toolCalls": [{ "id": "call_b", "type": "function", "function": { "arguments": "llo\"}" } }] }
+        },
+        {
+          "id": "resp_stream",
+          "model": "gpt-4o-mini",
+          "delta": {},
+          "finishReason": "tool_calls",
+          "usage": { "promptTokens": 5, "completionTokens": 11, "totalTokens": 16 }
+        }
+      ],
+      "expectations": {
+        "reassembledArguments": { "text": "hello" },
+        "finishReason": "tool_calls",
+        "emptyDeltaTolerated": true
+      }
+    },
+    {
+      "id": "tool-parameters-missing-invalid",
+      "valid": false,
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": [{ "role": "user", "content": "hi" }],
+        "tools": [
+          {
+            "type": "function",
+            "function": { "name": "echo", "description": "echo" }
+          }
+        ]
+      }
+    }
+  ]
+}

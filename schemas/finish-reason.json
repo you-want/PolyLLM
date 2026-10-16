@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "polyllm/0.4.0/schemas/finish-reason.json",
+  "title": "PolyLLM FinishReason (protocol 0.4.0 draft)",
+  "enum": ["stop", "length", "tool_calls", "content_filter", "other"]
+}
