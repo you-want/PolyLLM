@@ -2,7 +2,7 @@
 
 PolyLLM `0.x` 会继续演进，但发布前必须明确哪些接口属于公共契约，避免插件和多语言实现无序分叉。
 
-## 0.1 公共契约
+## 当前公共契约
 
 以下 TypeScript 导出属于公共 API：
 
@@ -19,9 +19,9 @@ PolyLLM `0.x` 会继续演进，但发布前必须明确哪些接口属于公共
 - 模型清单，如 `openAIModels`
 - 已公开的 wire 构造和解析函数
 
-`LLMPlugin` 的可选类属性 `allow_missing_api_key`（默认 `False`）自 `0.3.0` 起为公共 API：插件声明本地服务类供应商（如 Ollama）在 `create_llm` 构造阶段不强制校验 API Key；该字段不影响已有插件行为，未声明的插件默认仍需密钥。
+Python `LLMPlugin` 的可选类属性 `allow_missing_api_key`（默认 `False`）自 `0.3.0` 起为公共 API：插件声明本地服务类供应商（如 Ollama）在 `create_llm` 构造阶段不强制校验 API Key；该字段不影响已有插件行为，未声明的插件默认仍需密钥。它不是 TypeScript 接口字段。
 
-CLI 命令 `studio`、`init`、`doctor`、`models` 及其已有参数属于命令行契约。
+CLI 命令 `studio`、`init`、`doctor`、`models`、`new-plugin` 及其已有参数属于命令行契约。
 
 ## 兼容性规则
 
@@ -43,4 +43,4 @@ CLI 命令 `studio`、`init`、`doctor`、`models` 及其已有参数属于命�
 5. wheel 隔离安装、模块导入和 `py.typed` 标记校验
 6. Changesets 与版本冻结校验
 
-Python 包保持与 TypeScript 相同的概念语义，但遵循 Python 的命名和异步调用习惯。跨语言协议冻结将在 `0.4.0` 前完成。
+Python 包保持与 TypeScript 相同的概念语义，但遵循 Python 的命名和异步调用习惯。跨语言协议冻结属于 [0.4.0 计划](plans/v0.4.0-plan.md) 的目标；0.3.0 尚无共享 JSON Schema、契约门禁或统一重试策略。

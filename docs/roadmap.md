@@ -4,6 +4,8 @@ PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统
 
 ## 当前正式版本：0.3.0
 
+2026-10-16 完成 npm / PyPI 发布。日常发版按 [发布手册](release.md)；下一版执行范围与验收标准见 [0.4.0 计划](plans/v0.4.0-plan.md)。
+
 - TypeScript Core 与 Python Core
 - OpenAI、DeepSeek、Anthropic、OpenAI-compatible、Gemini、Ollama 插件
 - OpenAI-compatible 预设（OpenRouter / Qwen / Moonshot / Groq / vLLM / LiteLLM）
@@ -15,7 +17,7 @@ PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统
 
 ### 新增供应商插件
 
-- [x] Gemini 插件（TypeScript + Python）：独立 wire（`generateContent` / `streamGenerateContent`），视觉 + 工具调用 + 流式
+- [x] Gemini 插件（TypeScript + Python）：独立 wire（`generateContent` / `streamGenerateContent`），工具调用 + 流式；当前 `vision=false`，图片输入待后续评估
 - [x] Ollama 插件（TypeScript + Python）：本地默认 Base URL，无需 API Key，`listModels` 走原生 `/api/tags`
 
 ### OpenAI-compatible 预设
@@ -36,13 +38,15 @@ PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统
 
 ## 0.4.0 稳定协议
 
-- 发布语言无关的 JSON Schema / 协议文档
-- 建立跨语言一致性测试样例
-- 统一供应商错误分类
-- Retry、backoff、timeout 与取消的统一策略
-- Tool Calling、Vision、JSON Mode 一致性
-- 完善插件兼容性矩阵和迁移指南
-- 根据真实用户需求评估 Rust Core，而不是提前重写
+状态：已规划，尚未实现。建议优先保证现有供应商的可靠性，暂不增加新供应商或新语言。
+
+- M1：协议草案、TS/Python 差异清单、Python 底层请求取消可行性验证
+- M2：兼容现有错误码的错误分类、统一超时/取消与资源释放、默认关闭的可选重试
+- M3：语言无关 JSON Schema、共享 fixtures 与 CI、Tool Calling / Vision / JSON Mode 能力矩阵、迁移指南
+- M4：生成器/脚手架同步、全量门禁、next/TestPyPI/正式发布与安装验收
+- P1：Gemini base64 图片输入与 npm 标签预检/恢复提示；不阻塞 P0 协议交付
+
+详细任务、依赖顺序和退出标准以 [0.4.0 计划](plans/v0.4.0-plan.md) 为准。Rust Core 保持需求评估，不纳入本版实施范围。
 
 ## 语言策略
 

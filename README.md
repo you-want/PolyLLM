@@ -51,7 +51,7 @@ createLLM() ── 模型解析 ── 参数校验 ── 插件分发
 
 新手接入指南见 `docs/getting-started.md`。
 
-项目路线图见 `docs/roadmap.md`，公共 API 稳定性约定见 `docs/api-stability.md`。
+项目路线图见 [roadmap](docs/roadmap.md)，下一版见 [0.4.0 计划](docs/plans/v0.4.0-plan.md)，公共 API 稳定性约定见 [API stability](docs/api-stability.md)。当前稳定版本为 **0.3.0**（npm / PyPI）。
 
 ```bash
 pnpm install
@@ -167,14 +167,9 @@ const response = await llm.chat('openai:gpt-4o-mini', {
 
 ## 发布流程
 
-1. npm 修改完成后运行 `pnpm changeset`，选择需要发布的 npm 包和 semver 类型。
-2. Python 修改完成后运行 `python3 python/version.py set <version>`，并更新 `docs/release/` 发布说明。
-3. 发布前运行 `pnpm verify:release`，校验 npm/Python 版本、许可证、元数据和 changeset。
-4. 合并 Changeset 到 `main`，由维护者执行 `pnpm version-packages` 生成版本 PR。
-5. 版本 PR 合并后运行 `pnpm verify:release:frozen`，确认版本已冻结。
-6. 手动触发 GitHub Actions 的 `Release npm` 与 `Release Python` 工作流。
+按 [发布手册](docs/release.md) 操作：版本冻结 → npm `next` 安装验收 → TestPyPI 全量演练 → 正式 PyPI → npm `promote-latest` → 正式安装验收和发布记录。
 
-完整发布指南见 `docs/release.md`。Changesets 只管理 npm 包；Python 发布版本由 `python/version.py` 管理。
+手册包含每次工作流的点击位置、参数、Trusted Publisher 权限、部分失败后的恢复方式和版本检查清单。Changesets 只管理 npm；Python 版本由 `python/version.py` 管理，协调发布时两端及根版本必须一致。
 
 ## 示例
 
