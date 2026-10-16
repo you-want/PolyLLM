@@ -21,7 +21,7 @@
   },
   "allOf": [
     {
-      "if": { "properties": { "role": { "const": "tool" } } },
+      "if": { "properties": { "role": { "const": "tool" } }, "required": ["role"] },
       "then": { "required": ["toolCallId"] }
     }
   ]

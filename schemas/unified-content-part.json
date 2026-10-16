@@ -18,12 +18,12 @@
   },
   "allOf": [
     {
-      "if": { "properties": { "type": { "const": "text" } }, "required": ["type"] },
-      "then": { "required": ["text"] }
-    },
-    {
       "if": { "properties": { "type": { "const": "image_url" } }, "required": ["type"] },
       "then": { "required": ["imageUrl"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "text" } }, "required": ["type"] },
+      "then": { "required": ["text"] }
     }
   ]
 }

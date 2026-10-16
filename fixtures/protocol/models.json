@@ -1,0 +1,58 @@
+{
+  "description": "Scenario group 7: model namespaces, aliases, dynamic models, and missing capabilities. Registry resolution and createModelSpec behavior (docs/protocol.md §3).",
+  "schema": "schemas/unified-request.json",
+  "cases": [
+    {
+      "id": "aliased-model-resolves-to-canonical",
+      "valid": true,
+      "request": {
+        "model": "openai:gpt-4o",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ]
+      },
+      "expectations": {
+        "resolvedId": "openai:gpt-4o-mini"
+      }
+    },
+    {
+      "id": "dynamic-model-conservative-capabilities",
+      "valid": true,
+      "request": {
+        "model": "custom-gateway:frontier-x",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ]
+      },
+      "expectations": {
+        "vision": false,
+        "functionCalling": false,
+        "jsonMode": false
+      }
+    },
+    {
+      "id": "unknown-model-rejected-by-registry",
+      "valid": true,
+      "request": {
+        "model": "openai:does-not-exist",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ]
+      },
+      "expectations": {
+        "rejects": true,
+        "stage": "registry",
+        "code": "UNKNOWN_MODEL"
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@
   "schema": "schemas/unified-request.json",
   "cases": [
     {
-      "id": "tools-echo-roundtrip",
+      "id": "tools-declaration-roundtrip",
       "valid": true,
       "request": {
         "model": "openai:gpt-4o-mini",
@@ -25,6 +25,14 @@
           }
         ]
       },
+      "expectations": {
+        "toolCount": 1,
+        "toolName": "echo"
+      }
+    },
+    {
+      "id": "tools-response-with-tool-call",
+      "valid": true,
       "response": {
         "id": "resp_tools_1",
         "model": "gpt-4o-mini",
@@ -47,15 +55,45 @@
         ],
         "usage": { "promptTokens": 6, "completionTokens": 9, "totalTokens": 15 }
       },
-      "toolResultMessage": {
-        "role": "tool",
-        "toolCallId": "call_a",
-        "content": "hello"
-      },
       "expectations": {
         "finishReason": "tool_calls",
         "toolCallCount": 1,
         "argumentsParseOk": true
+      }
+    },
+    {
+      "id": "tool-result-roundtrip",
+      "valid": true,
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": [
+          { "role": "user", "content": "echo hello" },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              { "id": "call_a", "type": "function", "function": { "name": "echo", "arguments": "{\"text\":\"hello\"}" } }
+            ]
+          },
+          { "role": "tool", "toolCallId": "call_a", "content": "hello" }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "echo",
+              "description": "Echoes input back",
+              "parameters": {
+                "type": "object",
+                "properties": { "text": { "type": "string" } },
+                "required": ["text"]
+              }
+            }
+          }
+        ]
+      },
+      "expectations": {
+        "hasToolResult": true
       }
     },
     {

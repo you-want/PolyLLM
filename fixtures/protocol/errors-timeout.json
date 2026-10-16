@@ -1,0 +1,92 @@
+{
+  "description": "Scenario group 6: HTTP/transport/parse error, timeout, cancellation, and retry classification. Expected `category` / `retryable` per docs/protocol.md §7.1.",
+  "schema": "schemas/finish-reason.json",
+  "cases": [
+    {
+      "id": "http-401-auth",
+      "valid": true,
+      "error": {
+        "status": 401,
+        "category": "auth",
+        "retryable": false
+      }
+    },
+    {
+      "id": "http-403-permission",
+      "valid": true,
+      "error": {
+        "status": 403,
+        "category": "permission",
+        "retryable": false
+      }
+    },
+    {
+      "id": "http-429-rate-limited",
+      "valid": true,
+      "error": {
+        "status": 429,
+        "category": "rate_limited",
+        "retryable": true
+      }
+    },
+    {
+      "id": "http-400-invalid",
+      "valid": true,
+      "error": {
+        "status": 400,
+        "category": "invalid_request",
+        "retryable": false
+      }
+    },
+    {
+      "id": "http-500-server",
+      "valid": true,
+      "error": {
+        "status": 500,
+        "category": "server",
+        "retryable": true
+      }
+    },
+    {
+      "id": "connection-failure",
+      "valid": true,
+      "error": {
+        "category": "connection",
+        "retryable": true
+      }
+    },
+    {
+      "id": "invalid-json-parse",
+      "valid": true,
+      "error": {
+        "category": "parse",
+        "retryable": false
+      }
+    },
+    {
+      "id": "timeout",
+      "valid": true,
+      "error": {
+        "category": "timeout",
+        "retryable": false
+      }
+    },
+    {
+      "id": "cancelled",
+      "valid": true,
+      "error": {
+        "category": "cancelled",
+        "retryable": false
+      }
+    },
+    {
+      "id": "unknown-status",
+      "valid": true,
+      "error": {
+        "status": 418,
+        "category": "unknown",
+        "retryable": false
+      }
+    }
+  ]
+}

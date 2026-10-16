@@ -1,0 +1,64 @@
+{
+  "description": "Scenario group 5: JSON Mode, capability refusal, and strict/auto/lenient param policy. jsonMode=true maps to response_format=json_object; a capability refusal is UNSUPPORTED_PARAMETER (docs/protocol.md §5).",
+  "schema": "schemas/unified-request.json",
+  "cases": [
+    {
+      "id": "json-mode-request",
+      "valid": true,
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "list three fruits as JSON"
+          }
+        ],
+        "jsonMode": true
+      },
+      "expectations": {
+        "responseFormat": "json_object"
+      }
+    },
+    {
+      "id": "json-mode-disabled-omitted",
+      "valid": true,
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "expectations": {
+        "responseFormat": null
+      }
+    },
+    {
+      "id": "capability-refusal-vision-on-non-vision-model",
+      "valid": true,
+      "request": {
+        "model": "gemini:gemini-pro",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "imageUrl": {
+                  "url": "data:image/png;base64,AAA"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expectations": {
+        "rejects": true,
+        "code": "UNSUPPORTED_PARAMETER",
+        "capability": "vision"
+      }
+    }
+  ]
+}

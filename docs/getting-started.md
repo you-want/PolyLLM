@@ -71,6 +71,25 @@ for await (const chunk of llm.chatStream('openai:gpt-4o-mini', {
 }
 ```
 
+错误分类与显式重试（0.4.0）：供应商错误统一保留 `code === 'PROVIDER_ERROR'`，
+但 `details` 新增可机器读取的 `category` / `retryable`（见 `docs/protocol.md` §7）。
+重试**默认关闭**，需要时显式传策略：
+
+```ts
+try {
+  const resp = await llm.chat('deepseek:chat', { messages }, {
+    retries: { maxAttempts: 3, baseDelayMs: 500, jitter: 0.25 },
+  })
+} catch (error) {
+  if (error.details?.category === 'rate_limited' && error.details?.retryable) {
+    // 限流：可退避后再试
+  }
+}
+```
+
+完整能力支持情况见 [compatibility.md](compatibility.md)；从 0.3 升级的行为变化见
+[migrations/v0.3-to-v0.4.md](migrations/v0.3-to-v0.4.md)。
+
 ## 3. Python 使用
 
 发布后安装：

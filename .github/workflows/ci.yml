@@ -36,3 +36,4 @@ jobs:
       - run: pnpm verify:packages
       - run: pnpm verify:integration
       - run: pnpm verify:packed-install
+      - run: pnpm verify:protocol

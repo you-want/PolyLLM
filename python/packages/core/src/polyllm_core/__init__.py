@@ -1,5 +1,13 @@
 from .config import resolve_provider_runtime
-from .client import PolyLLM, create_llm
+from .client import (
+    PolyLLM,
+    create_llm,
+    normalize_content_part,
+    normalize_message,
+    normalize_tool,
+    normalize_tool_call,
+    normalize_unified_request,
+)
 from .errors import (
     AmbiguousModelError,
     PolyLLMError,
@@ -38,6 +46,11 @@ __all__ = [
     "make_cancel_handle",
     "mask_sensitive",
     "max_attempts",
+    "normalize_content_part",
+    "normalize_message",
+    "normalize_tool",
+    "normalize_tool_call",
+    "normalize_unified_request",
     "provider_http_error",
     "provider_transport_error",
     "resolve_provider_runtime",

@@ -173,7 +173,10 @@ def replace_provider_configs(config: ClientConfig) -> ClientConfig:
 
 def normalize_unified_request(payload: dict[str, Any]) -> UnifiedRequest:
     payload = dict(payload)
-    payload["messages"] = [normalize_message(message) for message in payload.get("messages", [])]
+    messages = [normalize_message(message) for message in payload.get("messages", [])]
+    if len(messages) == 0:
+        raise PolyLLMError("INVALID_CONFIG", "messages 不能为空", {"field": "messages"})
+    payload["messages"] = messages
     if payload.get("tools") is not None:
         payload["tools"] = [normalize_tool(tool) for tool in payload["tools"]]
     return UnifiedRequest(**payload)
@@ -184,17 +187,24 @@ def normalize_message(value: Any) -> UnifiedMessage:
         return value
     if not isinstance(value, dict):
         raise PolyLLMError("INVALID_CONFIG", "messages 必须是 UnifiedMessage 或 dict", {"message": value})
+    role = value["role"]
     content = value.get("content", "")
     if isinstance(content, list):
         content = [normalize_content_part(part) for part in content]
     tool_calls = value.get("tool_calls") or []
-    return UnifiedMessage(
-        role=value["role"],
+    result = UnifiedMessage(
+        role=role,
         content=content,
         name=value.get("name"),
         tool_call_id=value.get("tool_call_id"),
         tool_calls=tuple(normalize_tool_call(call) for call in tool_calls),
     )
+    # Contract rule (docs/protocol.md §2.2): a tool-result message must carry
+    # tool_call_id. Enforce here so the Python normalizer rejects the same
+    # inputs the JSON Schema rejects.
+    if role == "tool" and not result.tool_call_id:
+        raise PolyLLMError("INVALID_CONFIG", "tool 角色消息必须包含 tool_call_id", {"role": role})
+    return result
 
 
 def normalize_content_part(value: Any) -> UnifiedContentPart:
@@ -202,11 +212,18 @@ def normalize_content_part(value: Any) -> UnifiedContentPart:
         return value
     if not isinstance(value, dict):
         raise PolyLLMError("INVALID_CONFIG", "content parts 必须是 UnifiedContentPart 或 dict", {"part": value})
-    return UnifiedContentPart(
+    part = UnifiedContentPart(
         type=value["type"],
         text=value.get("text"),
         image_url=value.get("image_url") or value.get("imageUrl"),
     )
+    # Contract rule (docs/protocol.md §2.2): an image_url part must carry
+    # imageUrl. Reject it here so the Python normalizer matches the schema.
+    if part.type == "image_url" and not part.image_url:
+        raise PolyLLMError("INVALID_CONFIG", "image_url 内容部件必须包含 imageUrl", {"type": part.type})
+    if part.type == "text" and part.text is None:
+        raise PolyLLMError("INVALID_CONFIG", "text 内容部件必须包含 text", {"type": part.type})
+    return part
 
 
 def normalize_tool(value: Any) -> UnifiedTool:
@@ -214,7 +231,17 @@ def normalize_tool(value: Any) -> UnifiedTool:
         return value
     if not isinstance(value, dict):
         raise PolyLLMError("INVALID_CONFIG", "tools 必须是 UnifiedTool 或 dict", {"tool": value})
-    return UnifiedTool(type="function", function=value["function"])
+    function = value["function"]
+    # Contract rule (docs/protocol.md §2.2): a tool's function.parameters is a
+    # JSON Schema object and must declare its shape (type).
+    parameters = function.get("parameters")
+    if not isinstance(parameters, dict) or "type" not in parameters:
+        raise PolyLLMError(
+            "INVALID_CONFIG",
+            "tool function.parameters 必须是包含 type 的 JSON Schema 对象",
+            {"tool": value.get("function", {}).get("name")},
+        )
+    return UnifiedTool(type="function", function=function)
 
 
 def normalize_tool_call(value: Any) -> UnifiedToolCall:
