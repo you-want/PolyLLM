@@ -7,7 +7,10 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from polyllm_core.config import resolve_provider_runtime
-from polyllm_core.errors import PolyLLMError
+from polyllm_core.errors import (
+    PolyLLMError,
+    provider_http_error,
+)
 from polyllm_core.types import (
     ChatContext,
     FinishReason,
@@ -89,7 +92,7 @@ class AnthropicPlugin(LLMPlugin):
         response_id = "anthropic-stream"
         model = request.model
         if status < 200 or status >= 300:
-            raise PolyLLMError("PROVIDER_ERROR", f"Anthropic API 错误: {status} {text}", {"status": status})
+            raise provider_http_error("anthropic", status, text, "Anthropic API 错误")
         for event in parse_sse(text):
             event_type = event.get("type")
             if event_type == "content_block_delta":
@@ -203,7 +206,7 @@ class AnthropicPlugin(LLMPlugin):
         except json.JSONDecodeError as error:
             raise PolyLLMError("PROVIDER_ERROR", f"Anthropic 返回无效 JSON: {body[:200]}", {"status": status}) from error
         if status < 200 or status >= 300:
-            raise PolyLLMError("PROVIDER_ERROR", f"Anthropic API 错误: {status} {body}", {"status": status, "body": data})
+            raise provider_http_error("anthropic", status, data, "Anthropic API 错误")
         return data
 
 

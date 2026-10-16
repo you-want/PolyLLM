@@ -259,22 +259,62 @@ describe('provider HTTP integration', () => {
     })
     await expect(promise).rejects.toMatchObject({
       code: 'PROVIDER_ERROR',
-      details: { provider: 'openai', status: 429 },
+      details: {
+        provider: 'openai',
+        status: 429,
+        category: 'rate_limited',
+        retryable: true,
+      },
     })
+  })
+
+  it('masks credentials in error messages', async () => {
+    // The mock server returns { error: { message: 'rate limited' } } with status 429.
+    // Neither the message nor details may contain the raw key.
+    const promise = openAIPlugin.listModels?.({
+      apiKey: 'sk-fakekey1234567890abcdef',
+      baseUrl: `${serverUrl}/v1`,
+      headers: { 'x-force-error': 'true' },
+    })
+    try {
+      await promise
+      throw new Error('expected listModels to reject')
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'PROVIDER_ERROR' })
+      const message = String(error)
+      const detailsJson = JSON.stringify((error as { details?: unknown }).details ?? {})
+      expect(message).not.toContain('sk-fakekey1234567890abcdef')
+      expect(detailsJson).not.toContain('sk-fakekey1234567890abcdef')
+      expect((error as { details?: { category?: string } }).details?.category).toBe('rate_limited')
+    }
   })
 
   it('honors timeout and caller cancellation', async () => {
     const config: ProviderConfig = { apiKey: 'integration-key', baseUrl: `${serverUrl}/slow/v1` }
     const context = { model: openAIPlugin.models[0]!, timeoutMs: 20 }
-    await expect(openAIPlugin.chat({ model: context.model.id, messages: [{ role: 'user', content: 'hello' }] }, config, context)).rejects.toThrow()
+    await expect(
+      openAIPlugin.chat(
+        { model: context.model.id, messages: [{ role: 'user', content: 'hello' }] },
+        config,
+        context,
+      ),
+    ).rejects.toMatchObject({
+      code: 'PROVIDER_ERROR',
+      details: { category: 'timeout', retryable: false },
+    })
 
     const controller = new AbortController()
     controller.abort()
-    await expect(openAIPlugin.chat(
-      { model: context.model.id, messages: [{ role: 'user', content: 'hello' }] },
-      config,
-      { model: context.model, signal: controller.signal },
-    )).rejects.toThrow()
+    await expect(
+      openAIPlugin.chat(
+        { model: context.model.id, messages: [{ role: 'user', content: 'hello' }] },
+        config,
+        { model: context.model, signal: controller.signal },
+      ),
+    ).rejects.toMatchObject({
+      code: 'PROVIDER_ERROR',
+      details: { category: 'cancelled', retryable: false },
+    })
   })
 
   it('Gemini strips the models/ resource prefix from discovered models and chats through it', async () => {

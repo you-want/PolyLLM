@@ -7,7 +7,10 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from polyllm_core.config import resolve_provider_runtime
-from polyllm_core.errors import PolyLLMError
+from polyllm_core.errors import (
+    PolyLLMError,
+    provider_http_error,
+)
 from polyllm_core.types import (
     ChatContext,
     FinishReason,
@@ -81,7 +84,7 @@ class OpenAIPlugin(LLMPlugin):
         body["stream"] = True
         status, text = await self._request("POST", "/chat/completions", body, config, context)
         if status < 200 or status >= 300:
-            raise PolyLLMError("PROVIDER_ERROR", f"OpenAI API 错误: {status} {text}", {"status": status})
+            raise provider_http_error("openai", status, text, "OpenAI API 错误")
         for event in parse_sse(text):
             if event.get("object") != "chat.completion.chunk":
                 continue
@@ -180,7 +183,7 @@ class OpenAIPlugin(LLMPlugin):
         except json.JSONDecodeError as error:
             raise PolyLLMError("PROVIDER_ERROR", f"OpenAI 返回无效 JSON: {body[:200]}", {"status": status}) from error
         if status < 200 or status >= 300:
-            raise PolyLLMError("PROVIDER_ERROR", f"OpenAI API 错误: {status} {body}", {"status": status, "body": data})
+            raise provider_http_error("openai", status, data, "OpenAI API 错误")
         return data
 
 

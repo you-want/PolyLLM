@@ -1,7 +1,13 @@
 import {
+  classifyHttpStatus,
+  extractErrorExcerpt,
+  isRetryableCategory,
+  parseRetryAfter,
   PolyLLMError,
+  providerTransportError,
   resolveProviderRuntime,
   type ChatContext,
+  type ErrorCategory,
   type JsonRecord,
   type LLMPlugin,
   type ProviderModelInfo,
@@ -33,9 +39,35 @@ function combineSignals(signal: AbortSignal | undefined, timeoutMs: number | und
   return signal ? AbortSignal.any([signal, timeout]) : timeout
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
+async function readErrorBody(response: Response): Promise<Record<string, unknown> | string> {
   const text = await response.text()
-  return text || response.statusText
+  if (!text) return ''
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return text
+  }
+}
+
+function providerFetchError(provider: string, error: unknown, context: ChatContext, label: string): PolyLLMError {
+  return providerTransportError(provider, error, label, context.timeoutMs !== undefined, context.timeoutMs)
+}
+
+
+async function providerHttpFailure(provider: string, response: Response, label: string): Promise<PolyLLMError> {
+  const body = await readErrorBody(response)
+  const excerpt = extractErrorExcerpt(body)
+  const category: ErrorCategory = classifyHttpStatus(response.status)
+  const details: Record<string, unknown> = {
+    provider,
+    status: response.status,
+    category,
+    retryable: isRetryableCategory(category),
+    label,
+  }
+  const retryAfter = parseRetryAfter(response.headers.get('retry-after'))
+  if (retryAfter !== undefined) details.retryAfterSeconds = retryAfter
+  return new PolyLLMError('PROVIDER_ERROR', `${label}: ${response.status} ${excerpt}`, details)
 }
 
 async function requestAnthropic(
@@ -44,17 +76,21 @@ async function requestAnthropic(
   context: ChatContext,
 ): Promise<Response> {
   const runtime = resolveProviderRuntime('anthropic', config)
-  return fetch(endpoint(runtime.baseUrl, '/messages'), {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': runtime.apiKey,
-      'anthropic-version': '2023-06-01',
-      ...runtime.headers,
-    },
-    body: JSON.stringify(buildAnthropicRequestBody(request, context)),
-    signal: combineSignals(context.signal, context.timeoutMs) ?? null,
-  })
+  try {
+    return await fetch(endpoint(runtime.baseUrl, '/messages'), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': runtime.apiKey,
+        'anthropic-version': '2023-06-01',
+        ...runtime.headers,
+      },
+      body: JSON.stringify(buildAnthropicRequestBody(request, context)),
+      signal: combineSignals(context.signal, context.timeoutMs) ?? null,
+    })
+  } catch (error) {
+    throw providerFetchError('anthropic', error, context, 'Anthropic API 调用')
+  }
 }
 
 export const anthropicPlugin: LLMPlugin = {
@@ -82,20 +118,19 @@ export const anthropicPlugin: LLMPlugin = {
   },
   async listModels(config: ProviderConfig): Promise<ProviderModelInfo[]> {
     const runtime = resolveProviderRuntime('anthropic', config)
-    const response = await fetch(endpoint(runtime.baseUrl, '/models'), {
-      headers: {
-        'x-api-key': runtime.apiKey,
-        'anthropic-version': '2023-06-01',
-        ...runtime.headers,
-      },
-    })
-    if (!response.ok) {
-      throw new PolyLLMError(
-        'PROVIDER_ERROR',
-        `Anthropic 模型列表获取失败: ${response.status} ${await readErrorMessage(response)}`,
-        { status: response.status, provider: 'anthropic' },
-      )
+    let response: Response
+    try {
+      response = await fetch(endpoint(runtime.baseUrl, '/models'), {
+        headers: {
+          'x-api-key': runtime.apiKey,
+          'anthropic-version': '2023-06-01',
+          ...runtime.headers,
+        },
+      })
+    } catch (error) {
+      throw providerTransportError('anthropic', error, 'Anthropic 模型列表获取', false)
     }
+    if (!response.ok) throw await providerHttpFailure('anthropic', response, 'Anthropic 模型列表获取失败')
     return parseAnthropicModelsResponse((await response.json()) as JsonRecord)
   },
   async chat(
@@ -104,13 +139,7 @@ export const anthropicPlugin: LLMPlugin = {
     context: ChatContext,
   ): Promise<UnifiedResponse> {
     const response = await requestAnthropic(request, config, context)
-    if (!response.ok) {
-      throw new PolyLLMError(
-        'PROVIDER_ERROR',
-        `Anthropic API 错误: ${response.status} ${await readErrorMessage(response)}`,
-        { status: response.status, provider: 'anthropic' },
-      )
-    }
+    if (!response.ok) throw await providerHttpFailure('anthropic', response, 'Anthropic API 错误')
     const data = (await response.json()) as JsonRecord
     return parseAnthropicResponse(data, context.model.id)
   },
@@ -120,14 +149,13 @@ export const anthropicPlugin: LLMPlugin = {
     context: ChatContext,
   ): AsyncIterable<UnifiedStreamChunk> {
     const response = await requestAnthropic({ ...request, stream: true }, config, context)
-    if (!response.ok) {
-      throw new PolyLLMError(
-        'PROVIDER_ERROR',
-        `Anthropic API 错误: ${response.status} ${await readErrorMessage(response)}`,
-        { status: response.status, provider: 'anthropic' },
-      )
-    }
-    if (!response.body) throw new PolyLLMError('PROVIDER_ERROR', 'Anthropic API 未返回响应流')
+    if (!response.ok) throw await providerHttpFailure('anthropic', response, 'Anthropic API 错误')
+    if (!response.body)
+      throw new PolyLLMError('PROVIDER_ERROR', 'Anthropic API 未返回响应流', {
+        provider: 'anthropic',
+        category: 'connection',
+        retryable: true,
+      })
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()

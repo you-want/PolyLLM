@@ -6,7 +6,10 @@ from typing import Any, AsyncIterator, Callable, cast
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from polyllm_core.errors import PolyLLMError
+from polyllm_core.errors import (
+    PolyLLMError,
+    provider_http_error,
+)
 from polyllm_core.types import (
     ChatContext,
     LLMPlugin,
@@ -89,7 +92,7 @@ class OllamaPlugin(LLMPlugin):
             "POST", f"{base_url}/v1/chat/completions", body, config, context
         )
         if status < 200 or status >= 300:
-            raise PolyLLMError("PROVIDER_ERROR", f"Ollama API 错误: {status} {text}", {"status": status})
+            raise provider_http_error("ollama", status, text, "Ollama API 错误")
         for event in parse_sse(text):
             choice = (event.get("choices") or [{}])[0]
             delta = choice.get("delta") or {}
@@ -189,11 +192,7 @@ class OllamaPlugin(LLMPlugin):
         except json.JSONDecodeError as error:
             raise PolyLLMError("PROVIDER_ERROR", f"Ollama 返回无效 JSON: {body[:200]}", {"status": status}) from error
         if status < 200 or status >= 300:
-            raise PolyLLMError(
-                "PROVIDER_ERROR",
-                f"Ollama API 错误: {status} {body}",
-                {"status": status, "body": data},
-            )
+            raise provider_http_error("ollama", status, data, "Ollama API 错误")
         return data
 
 

@@ -7,7 +7,10 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from polyllm_core.config import resolve_provider_runtime
-from polyllm_core.errors import PolyLLMError
+from polyllm_core.errors import (
+    PolyLLMError,
+    provider_http_error,
+)
 from polyllm_core.types import (
     ChatContext,
     LLMPlugin,
@@ -106,7 +109,7 @@ class GeminiPlugin(LLMPlugin):
         body = self._build_body(request)
         status, text = await self._request("POST", url, body, runtime, context)
         if status < 200 or status >= 300:
-            raise PolyLLMError("PROVIDER_ERROR", f"Gemini API 错误: {status} {text}", {"status": status})
+            raise provider_http_error("gemini", status, text, "Gemini API 错误")
         for event_payload in parse_sse_events(text):
             event = json.loads(event_payload)
             candidate = (event.get("candidates") or [{}])[0]
@@ -268,11 +271,7 @@ class GeminiPlugin(LLMPlugin):
         except json.JSONDecodeError as error:
             raise PolyLLMError("PROVIDER_ERROR", f"Gemini 返回无效 JSON: {body[:200]}", {"status": status}) from error
         if status < 200 or status >= 300:
-            raise PolyLLMError(
-                "PROVIDER_ERROR",
-                f"Gemini API 错误: {status} {body}",
-                {"status": status, "body": data},
-            )
+            raise provider_http_error("gemini", status, data, "Gemini API 错误")
         return data
 
     async def _request(
