@@ -12,3 +12,4 @@ python/dist/
 .env
 .env.*
 !.env.example
+.verify-protocol/
