@@ -6,6 +6,7 @@ import {
   PolyLLMError,
   providerTransportError,
   resolveProviderRuntime,
+  withRetries,
   type ChatContext,
   type ErrorCategory,
   type JsonRecord,
@@ -116,24 +117,33 @@ export const geminiPlugin: LLMPlugin = {
   ): Promise<UnifiedResponse> {
     const runtime = resolveProviderRuntime('gemini', config)
     const baseUrl = runtime.baseUrl.trim() || DEFAULT_BASE_URL
-    let response: Response
-    try {
-      response = await fetch(endpoint(baseUrl, context.model.id, 'generateContent'), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-goog-api-key': runtime.apiKey,
-          ...runtime.headers,
-        },
-        body: JSON.stringify(buildGeminiRequestBody(request, context)),
-        signal: combineSignals(context.signal, context.timeoutMs) ?? null,
-      })
-    } catch (error) {
-      throw providerFetchError('gemini', error, context, 'Gemini API 调用')
+    const callOnce = async (): Promise<UnifiedResponse> => {
+      let response: Response
+      try {
+        response = await fetch(endpoint(baseUrl, context.model.id, 'generateContent'), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-goog-api-key': runtime.apiKey,
+            ...runtime.headers,
+          },
+          body: JSON.stringify(buildGeminiRequestBody(request, context)),
+          signal: combineSignals(context.signal, context.timeoutMs) ?? null,
+        })
+      } catch (error) {
+        throw providerFetchError('gemini', error, context, 'Gemini API 调用')
+      }
+      if (!response.ok) throw await providerHttpFailure('gemini', response, 'Gemini API 错误')
+      const data = (await response.json()) as JsonRecord
+      return parseGeminiResponse(data, context.model.id)
     }
-    if (!response.ok) throw await providerHttpFailure('gemini', response, 'Gemini API 错误')
-    const data = (await response.json()) as JsonRecord
-    return parseGeminiResponse(data, context.model.id)
+    if (!context.retries) return callOnce()
+    const { result } = await withRetries(callOnce, {
+      policy: context.retries,
+      signal: context.signal,
+      deadlineMs: context.timeoutMs,
+    })
+    return result
   },
   async *chatStream(
     request: UnifiedRequest,

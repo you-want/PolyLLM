@@ -6,6 +6,7 @@ import {
   PolyLLMError,
   providerTransportError,
   resolveProviderRuntime,
+  withRetries,
   type ChatContext,
   type ErrorCategory,
   type JsonRecord,
@@ -118,24 +119,33 @@ export const openAIPlugin: LLMPlugin = {
     context: ChatContext,
   ): Promise<UnifiedResponse> {
     const runtime = resolveProviderRuntime('openai', config)
-    let response: Response
-    try {
-      response = await fetch(endpoint(runtime.baseUrl, '/chat/completions'), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${runtime.apiKey}`,
-          ...runtime.headers,
-        },
-        body: JSON.stringify(buildOpenAIRequestBody(request, context)),
-        signal: combineSignals(context.signal, context.timeoutMs) ?? null,
-      })
-    } catch (error) {
-      throw providerFetchError('openai', error, context, 'OpenAI API 调用')
+    const callOnce = async (): Promise<UnifiedResponse> => {
+      let response: Response
+      try {
+        response = await fetch(endpoint(runtime.baseUrl, '/chat/completions'), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${runtime.apiKey}`,
+            ...runtime.headers,
+          },
+          body: JSON.stringify(buildOpenAIRequestBody(request, context)),
+          signal: combineSignals(context.signal, context.timeoutMs) ?? null,
+        })
+      } catch (error) {
+        throw providerFetchError('openai', error, context, 'OpenAI API 调用')
+      }
+      if (!response.ok) throw await providerHttpFailure('openai', response, 'OpenAI API 错误')
+      const data = (await response.json()) as JsonRecord
+      return parseOpenAIResponse(data, context.model.id)
     }
-    if (!response.ok) throw await providerHttpFailure('openai', response, 'OpenAI API 错误')
-    const data = (await response.json()) as JsonRecord
-    return parseOpenAIResponse(data, context.model.id)
+    if (!context.retries) return callOnce()
+    const { result } = await withRetries(callOnce, {
+      policy: context.retries,
+      signal: context.signal,
+      deadlineMs: context.timeoutMs,
+    })
+    return result
   },
   async *chatStream(
     request: UnifiedRequest,

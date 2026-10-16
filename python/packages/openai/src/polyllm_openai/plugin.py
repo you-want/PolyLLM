@@ -10,7 +10,9 @@ from polyllm_core.config import resolve_provider_runtime
 from polyllm_core.errors import (
     PolyLLMError,
     provider_http_error,
+    provider_transport_error,
 )
+from polyllm_core.transport import interruptible_urlopen, make_cancel_handle
 from polyllm_core.types import (
     ChatContext,
     FinishReason,
@@ -36,8 +38,13 @@ class OpenAIPlugin(LLMPlugin):
     provider = "openai"
     models = models
 
-    def __init__(self, transport: Transport | None = None):
+    def __init__(self, transport: Transport | None = None, interruptible: bool = True):
         self._transport = transport or urllib_transport
+        # The interruptible path is used only when the built-in transport is in
+        # effect (no user-injected mock). A user-injected 5-arg transport
+        # always keeps the legacy behavior so mock tests and custom transports
+        # are unaffected.
+        self._interruptible = interruptible and transport is None
 
     async def chat(
         self,
@@ -159,14 +166,25 @@ class OpenAIPlugin(LLMPlugin):
         headers = {"Authorization": f"Bearer {runtime.api_key}", **runtime.headers}
         if payload is not None:
             headers["Content-Type"] = "application/json"
-        return await asyncio.to_thread(
-            self._transport,
-            method,
-            f"{base_url}{path}",
-            headers,
-            payload,
-            context.timeout_ms if context is not None and context.timeout_ms is not None else 120000,
-        )
+        timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
+        handle = make_cancel_handle()
+        # The injected transport may be the legacy 5-arg urllib signature or the
+        # interruptible 6-arg form. Adapt the call so both keep working, but
+        # prefer the interruptible path when available so task cancel can
+        # release the socket.
+        if self._interruptible:
+            status, body, _headers = await asyncio.to_thread(
+                interruptible_urlopen, method, f"{base_url}{path}", headers, payload, timeout_ms, handle
+            )
+        else:
+            status, body = await asyncio.to_thread(
+                self._transport, method, f"{base_url}{path}", headers, payload, timeout_ms
+            )
+        if status == -1:
+            if handle.cancelled:
+                raise provider_transport_error(self.provider, "OpenAI API 调用", "cancelled", timeout_ms=timeout_ms)
+            raise provider_transport_error(self.provider, "OpenAI API 调用", "timeout", timeout_ms=timeout_ms)
+        return status, body
 
     @staticmethod
     def _parse_usage(data: Mapping[str, Any]) -> UnifiedUsage:

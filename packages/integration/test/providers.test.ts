@@ -31,6 +31,7 @@ interface RequestRecord {
 let server: ReturnType<typeof createServer>
 let serverUrl = ''
 const requestRecords: RequestRecord[] = []
+let flakyHits = 0
 
 async function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   let body = ''
@@ -54,6 +55,22 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
   const url = request.url ?? '/'
   if (request.headers['x-force-error'] === 'true') {
     sendJson(response, { error: { message: 'rate limited' } }, 429)
+    return
+  }
+  // /flaky: fail with 503 twice, then succeed. Used to verify the retry
+  // policy actually reissues the request and honors transient categories.
+  if (url.includes('/flaky/')) {
+    flakyHits += 1
+    if (flakyHits <= 2) {
+      sendJson(response, { error: { message: 'transient upstream failure' } }, 503)
+      return
+    }
+    sendJson(response, {
+      id: 'flaky-ok',
+      model: 'flaky-model',
+      choices: [{ index: 0, message: { role: 'assistant', content: 'recovered' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    })
     return
   }
   if (url.includes('/slow/')) {
@@ -287,6 +304,35 @@ describe('provider HTTP integration', () => {
       expect(detailsJson).not.toContain('sk-fakekey1234567890abcdef')
       expect((error as { details?: { category?: string } }).details?.category).toBe('rate_limited')
     }
+  })
+
+  it('retries transient 5xx when a RetryPolicy is supplied (opt-in)', async () => {
+    flakyHits = 0
+    const llm = createLLM({
+      plugins: [openAIPlugin],
+      providers: { openai: { apiKey: 'integration-key', baseUrl: `${serverUrl}/flaky/v1` } },
+    })
+    const response = await llm.chat('openai:gpt-4o-mini', {
+      messages: [{ role: 'user', content: 'hi' }],
+    }, {
+      retries: { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 2, jitter: 0 },
+    })
+    expect(response.choices[0]?.message?.content).toBe('recovered')
+    // Initial + 2 retries = 3 actual HTTP attempts.
+    expect(flakyHits).toBe(3)
+  })
+
+  it('does not retry by default when no policy is supplied', async () => {
+    flakyHits = 0
+    const llm = createLLM({
+      plugins: [openAIPlugin],
+      providers: { openai: { apiKey: 'integration-key', baseUrl: `${serverUrl}/flaky/v1` } },
+    })
+    // First hit of the flaky endpoint returns 503 -> PROVIDER_ERROR, no retry.
+    await expect(
+      llm.chat('openai:gpt-4o-mini', { messages: [{ role: 'user', content: 'hi' }] }),
+    ).rejects.toMatchObject({ code: 'PROVIDER_ERROR', details: { category: 'server', retryable: true } })
+    expect(flakyHits).toBe(1)
   })
 
   it('honors timeout and caller cancellation', async () => {

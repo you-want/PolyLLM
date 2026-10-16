@@ -1,5 +1,6 @@
 export * from './types.js'
 export * from './errors.js'
+export * from './retry.js'
 export { ModelRegistry } from './registry.js'
 export { resolveProviderRuntime } from './config.js'
 export { validateAndMapParams } from './params.js'

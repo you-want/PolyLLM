@@ -6,6 +6,7 @@ import {
   PolyLLMError,
   providerTransportError,
   resolveProviderRuntime,
+  withRetries,
   type ChatContext,
   type ErrorCategory,
   type JsonRecord,
@@ -138,10 +139,19 @@ export const anthropicPlugin: LLMPlugin = {
     config: ProviderConfig,
     context: ChatContext,
   ): Promise<UnifiedResponse> {
-    const response = await requestAnthropic(request, config, context)
-    if (!response.ok) throw await providerHttpFailure('anthropic', response, 'Anthropic API 错误')
-    const data = (await response.json()) as JsonRecord
-    return parseAnthropicResponse(data, context.model.id)
+    const callOnce = async (): Promise<UnifiedResponse> => {
+      const response = await requestAnthropic(request, config, context)
+      if (!response.ok) throw await providerHttpFailure('anthropic', response, 'Anthropic API 错误')
+      const data = (await response.json()) as JsonRecord
+      return parseAnthropicResponse(data, context.model.id)
+    }
+    if (!context.retries) return callOnce()
+    const { result } = await withRetries(callOnce, {
+      policy: context.retries,
+      signal: context.signal,
+      deadlineMs: context.timeoutMs,
+    })
+    return result
   },
   async *chatStream(
     request: UnifiedRequest,

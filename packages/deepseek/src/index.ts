@@ -6,6 +6,7 @@ import {
   PolyLLMError,
   providerTransportError,
   resolveProviderRuntime,
+  withRetries,
   type ChatContext,
   type ErrorCategory,
   type JsonRecord,
@@ -114,24 +115,33 @@ export const deepSeekPlugin: LLMPlugin = {
     context: ChatContext,
   ): Promise<UnifiedResponse> {
     const runtime = resolveProviderRuntime('deepseek', config)
-    let response: Response
-    try {
-      response = await fetch(endpoint(runtime.baseUrl, '/chat/completions'), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${runtime.apiKey}`,
-          ...runtime.headers,
-        },
-        body: JSON.stringify(buildDeepSeekRequestBody(request, context)),
-        signal: combineSignals(context.signal, context.timeoutMs) ?? null,
-      })
-    } catch (error) {
-      throw providerFetchError('deepseek', error, context, 'DeepSeek API 调用')
+    const callOnce = async (): Promise<UnifiedResponse> => {
+      let response: Response
+      try {
+        response = await fetch(endpoint(runtime.baseUrl, '/chat/completions'), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${runtime.apiKey}`,
+            ...runtime.headers,
+          },
+          body: JSON.stringify(buildDeepSeekRequestBody(request, context)),
+          signal: combineSignals(context.signal, context.timeoutMs) ?? null,
+        })
+      } catch (error) {
+        throw providerFetchError('deepseek', error, context, 'DeepSeek API 调用')
+      }
+      if (!response.ok) throw await providerHttpFailure('deepseek', response, 'DeepSeek API 错误')
+      const data = (await response.json()) as JsonRecord
+      return parseDeepSeekResponse(data, context.model.id)
     }
-    if (!response.ok) throw await providerHttpFailure('deepseek', response, 'DeepSeek API 错误')
-    const data = (await response.json()) as JsonRecord
-    return parseDeepSeekResponse(data, context.model.id)
+    if (!context.retries) return callOnce()
+    const { result } = await withRetries(callOnce, {
+      policy: context.retries,
+      signal: context.signal,
+      deadlineMs: context.timeoutMs,
+    })
+    return result
   },
   async *chatStream(
     request: UnifiedRequest,

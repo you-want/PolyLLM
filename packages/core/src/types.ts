@@ -149,6 +149,30 @@ export interface ChatContext {
   model: ModelSpec
   signal?: AbortSignal | undefined
   timeoutMs?: number | undefined
+  retries?: RetryPolicy | undefined
+}
+
+/**
+ * Opt-in retry policy. When omitted (the default) no automatic retry happens,
+ * so upgrades never silently increase call counts or cost.
+ *
+ * See docs/protocol.md §5 / T3. Retries apply only to retryable categories
+ * (`rate_limited` / `server` / `connection`), respect a valid `Retry-After`,
+ * and are bounded by the total `timeoutMs` budget. Cancellation and the first
+ * user-visible stream chunk are never replayed.
+ */
+export interface RetryPolicy {
+  /** Maximum number of retries after the initial attempt. Total attempts =
+   * `maxAttempts` is the default (2 retries → up to 3 attempts). */
+  maxAttempts?: number
+  /** Base delay in milliseconds for exponential backoff (default 500). */
+  baseDelayMs?: number
+  /** Multiplier applied to the delay after each failure (default 2). */
+  backoffFactor?: number
+  /** Upper bound in ms for a single backoff wait (default 8000). */
+  maxDelayMs?: number
+  /** Random fraction (0..1) of jitter added to each backoff wait (default 0.25). */
+  jitter?: number
 }
 
 export interface LLMPlugin {
@@ -180,6 +204,7 @@ export interface ClientConfig {
 export interface ChatOptions {
   signal?: AbortSignal
   timeoutMs?: number
+  retries?: RetryPolicy
 }
 
 export interface LLMClient {

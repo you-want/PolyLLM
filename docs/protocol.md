@@ -275,4 +275,33 @@ ChatContext:
 | 供应商错误判断 | 低 | 只看 `code=PROVIDER_ERROR` | 仍可用；推荐读 `details.category` / `details.retryable`（§7） |
 | Python 超时 | 中 | 无公开入口，插件内 120s 缺省 | `chat(..., timeout_ms=...)`（§6.3） |
 
+## 11. T3 实现记录（超时/取消/重试）
+
+### 11.1 重试（默认关闭）
+
+- 类型：`RetryPolicy`（TS `ChatOptions.retries` / `ChatContext.retries`；Python `with_retries` 策略 dict）。
+- 默认（不传）：**零重试**，行为与 0.3.0 一致，升级不会自动增加调用次数/费用。
+- 开启后默认最多 2 次重试（共 3 次尝试），指数退避 base 500ms × 2^n，jitter 0.25，单次上限 8000ms；有效 `Retry-After` 优先于退避。
+- 仅对可重试类别（`rate_limited`/`server`/`connection`）重试；`auth`/`permission`/`invalid_request`/`parse`/`timeout`/`cancelled` 一律不重试。
+- 受总时间预算 `timeoutMs` 约束：预算耗尽 → `category=timeout`，不再重试。
+- 取消不重试；首个用户可见流 chunk 之后不自动重放（本层只包 `chat`，`chatStream` 不进自动重试，避免文本/工具重复）。
+- 实现层：TS `packages/core/src/retry.ts`（`withRetries` / `computeBackoffMs` / `maxAttempts`，clock/random 可注入），Python `polyllm_core/retry.py` 同构。6 类 TS 插件的 `chat` 已接入；Python 插件的 `chat` 在 0.4.0 保持单发，`with_retries` 作为公开原语供调用方显式使用（避免默认行为变化）。
+
+### 11.2 可中止 Python transport
+
+- `polyllm_core.transport.interruptible_urlopen` + `CancelHandle`：worker 线程注册活动 socket，`cancel()` 调 `shutdown()` 强制关闭，读阻塞立即 `OSError` 退出（§9.2 验证）。无新依赖（`http.client`/`socket` 标准库）。
+- 插件接入：`OpenAIPlugin(transport=None, interruptible=True)` 默认走可中断路径；注入自定义 5 参 `transport` 时自动回退旧行为，`interruptible=False` 可显式关闭。
+- 超时/取消语义：`status == -1` 时，`handle.cancelled` → `cancelled`，否则 → `timeout`，均以 `PROVIDER_ERROR` 抛出（复用 T2 分类字段）。
+- 边界：本阶段覆盖"等待响应"；SSE 流读取阶段的 socket 注册列为 M2 待验证点（§9.3），流式取消暂不承诺供应商停止生成（§6.1）。
+
+### 11.3 默认值决策
+
+| 项 | 0.3.0 | 0.4.0 |
+| --- | --- | --- |
+| 重试 | 无 | 默认关闭；`retries` 显式开启 |
+| timeout 语义 | 仅 socket 级 | 整个调用预算（含重试/流读取），总预算 |
+| 无超时表示 | — | `undefined`/`None` = 不做 Core 预算，transport 仍保留 socket 兜底 |
+| 取消资源释放 | 无法保证 | 可中止 transport 保证 socket 立即释放 |
+
+
 完整迁移示例在 `docs/migrations/v0.3-to-v0.4.md`（T5 交付）。

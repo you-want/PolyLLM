@@ -6,6 +6,7 @@ import {
   PolyLLMError,
   providerTransportError,
   resolveProviderRuntime,
+  withRetries,
   type ChatContext,
   type ErrorCategory,
   type JsonRecord,
@@ -137,10 +138,19 @@ export const openAICompatiblePlugin: LLMPlugin = {
     config: ProviderConfig,
     context: ChatContext,
   ): Promise<UnifiedResponse> {
-    const response = await requestCompatible(request, config, context)
-    if (!response.ok) throw await providerHttpFailure('openai-compatible', response, 'OpenAI-compatible API 错误')
-    const data = (await response.json()) as JsonRecord
-    return parseOpenAIResponse(data, context.model.id)
+    const callOnce = async (): Promise<UnifiedResponse> => {
+      const response = await requestCompatible(request, config, context)
+      if (!response.ok) throw await providerHttpFailure('openai-compatible', response, 'OpenAI-compatible API 错误')
+      const data = (await response.json()) as JsonRecord
+      return parseOpenAIResponse(data, context.model.id)
+    }
+    if (!context.retries) return callOnce()
+    const { result } = await withRetries(callOnce, {
+      policy: context.retries,
+      signal: context.signal,
+      deadlineMs: context.timeoutMs,
+    })
+    return result
   },
   async *chatStream(
     request: UnifiedRequest,

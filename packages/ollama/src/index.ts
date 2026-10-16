@@ -5,6 +5,7 @@ import {
   parseRetryAfter,
   PolyLLMError,
   providerTransportError,
+  withRetries,
   type ChatContext,
   type ErrorCategory,
   type JsonRecord,
@@ -133,20 +134,29 @@ export const ollamaPlugin: LLMPlugin = {
     context: ChatContext,
   ): Promise<UnifiedResponse> {
     const baseUrl = resolveBaseUrl(config)
-    let response: Response
-    try {
-      response = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', ...resolveHeaders(config) },
-        body: JSON.stringify(buildOpenAIRequestBody(request, context)),
-        signal: combineSignals(context.signal, context.timeoutMs) ?? null,
-      })
-    } catch (error) {
-      throw providerFetchError('ollama', error, context, 'Ollama API 调用')
+    const callOnce = async (): Promise<UnifiedResponse> => {
+      let response: Response
+      try {
+        response = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...resolveHeaders(config) },
+          body: JSON.stringify(buildOpenAIRequestBody(request, context)),
+          signal: combineSignals(context.signal, context.timeoutMs) ?? null,
+        })
+      } catch (error) {
+        throw providerFetchError('ollama', error, context, 'Ollama API 调用')
+      }
+      if (!response.ok) throw await providerHttpFailure('ollama', response, 'Ollama API 错误')
+      const data = (await response.json()) as JsonRecord
+      return parseOpenAIResponse(data, context.model.id)
     }
-    if (!response.ok) throw await providerHttpFailure('ollama', response, 'Ollama API 错误')
-    const data = (await response.json()) as JsonRecord
-    return parseOpenAIResponse(data, context.model.id)
+    if (!context.retries) return callOnce()
+    const { result } = await withRetries(callOnce, {
+      policy: context.retries,
+      signal: context.signal,
+      deadlineMs: context.timeoutMs,
+    })
+    return result
   },
   async *chatStream(
     request: UnifiedRequest,
