@@ -60,7 +60,9 @@ class OpenAITests(unittest.TestCase):
 
         async def run():
             chunks = []
-            async for chunk in OpenAIPlugin(lambda *args: (200, sse)).chat_stream(
+            async for chunk in OpenAIPlugin(
+                lambda *args: (200, sse), interruptible=False
+            ).chat_stream(
                 UnifiedRequest(model="gpt-4o-mini", messages=[UnifiedMessage(role="user", content="hi")], stream=True),
                 ProviderConfig(api_key="k"),
                 None,

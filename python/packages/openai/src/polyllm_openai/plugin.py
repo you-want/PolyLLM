@@ -1,18 +1,24 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+from polyllm_core.transport import request_text, request_events
+from polyllm_core.wire import parse_openai_stream_event, serialize_openai_message, parse_openai_response
+
 import asyncio
 import json
-from typing import Any, AsyncIterator, Callable, Mapping, cast
+from typing import Any, AsyncGenerator, AsyncIterator, Callable, Mapping, cast
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from polyllm_core.config import resolve_provider_runtime
 from polyllm_core.errors import (
+    ErrorCategory,
     PolyLLMError,
     provider_http_error,
+    provider_parse_error,
     provider_transport_error,
 )
-from polyllm_core.transport import interruptible_urlopen, make_cancel_handle
 from polyllm_core.types import (
     ChatContext,
     FinishReason,
@@ -40,6 +46,7 @@ class OpenAIPlugin(LLMPlugin):
 
     def __init__(self, transport: Transport | None = None, interruptible: bool = True):
         self._transport = transport or urllib_transport
+        self._custom_transport = transport or (urllib_transport if not interruptible else None)
         # The interruptible path is used only when the built-in transport is in
         # effect (no user-injected mock). A user-injected 5-arg transport
         # always keeps the legacy behavior so mock tests and custom transports
@@ -52,34 +59,12 @@ class OpenAIPlugin(LLMPlugin):
         config: ProviderConfig,
         context: ChatContext,
     ) -> UnifiedResponse:
-        status, body = await self._request("POST", "/chat/completions", self._build_body(request), config, context)
+        status, body = await self._request("POST", "/chat/completions", self._build_body(request, context), config, context)
         data = self._parse_json(status, body)
-        choice = data["choices"][0]
-        message = choice["message"]
-        return UnifiedResponse(
-            id=data["id"],
-            model=data["model"],
-            choices=[
-                UnifiedChoice(
-                    index=choice["index"],
-                    message=UnifiedMessage(
-                        role="assistant",
-                        content=message.get("content") or "",
-                        tool_calls=tuple(
-                            UnifiedToolCall(
-                                id=call["id"],
-                                type="function",
-                                function=dict(call["function"]),
-                            )
-                            for call in message.get("tool_calls", [])
-                        ),
-                    ),
-                    finish_reason=choice.get("finish_reason", "other"),
-                )
-            ],
-            usage=self._parse_usage(data.get("usage", {})),
-            provider_metadata=data.get("metadata"),
-        )
+        try:
+            return parse_openai_response(data, request.model)
+        except (KeyError, TypeError, ValueError, IndexError, AttributeError):
+            raise provider_parse_error(self.provider, status, self.provider) from None
 
     async def chat_stream(
         self,
@@ -87,20 +72,20 @@ class OpenAIPlugin(LLMPlugin):
         config: ProviderConfig,
         context: ChatContext,
     ) -> AsyncIterator[UnifiedStreamChunk]:
-        body = self._build_body(request)
+        body = self._build_body(request, context)
         body["stream"] = True
-        status, text = await self._request("POST", "/chat/completions", body, config, context)
-        if status < 200 or status >= 300:
-            raise provider_http_error("openai", status, text, "OpenAI API 错误")
-        for event in parse_sse(text):
-            if event.get("object") != "chat.completion.chunk":
-                continue
-            yield UnifiedStreamChunk(
-                id=event["id"],
-                model=event["model"],
-                delta=dict(event.get("delta", {})),
-                finish_reason=event.get("finish_reason"),
-            )
+        body["stream_options"] = {"include_usage": True}
+        events = self._stream_request("POST", "/chat/completions", body, config, context)
+        try:
+            async for event in events:
+                chunk = parse_openai_stream_event(event, request.model)
+                if chunk is not None:
+                    yield chunk
+        finally:
+            await events.aclose()
+
+    def _parse_stream_event(self, event: dict[str, Any], fallback_model: str) -> UnifiedStreamChunk | None:
+        return parse_openai_stream_event(event, fallback_model)
 
     async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
         status, body = await self._request("GET", "/models", None, config, ChatContext(model=self.models[0]))
@@ -120,20 +105,21 @@ class OpenAIPlugin(LLMPlugin):
         return ModelSpec(
             id=model_id,
             provider=self.provider,
-            capabilities=capabilities,
+            capabilities=replace(capabilities, vision=False, function_calling=False, json_mode=False),
             context_window=128000,
             max_output=16384,
         )
 
-    def _build_body(self, request: UnifiedRequest) -> dict[str, Any]:
+    def _build_body(self, request: UnifiedRequest, context: ChatContext | None = None) -> dict[str, Any]:
         body: dict[str, Any] = {
-            "model": request.model,
+            "model": (context.model.snapshot or context.model.id) if context else request.model,
             "messages": [self._serialize_message(message) for message in request.messages],
         }
         if request.temperature is not None:
             body["temperature"] = request.temperature
         if request.max_tokens is not None:
-            body["max_tokens"] = request.max_tokens
+            field = context.model.params.get("max_tokens") if context else None
+            body[field.field if field and field.field else "max_tokens"] = request.max_tokens
         if request.top_p is not None:
             body["top_p"] = request.top_p
         if request.json_mode:
@@ -144,14 +130,7 @@ class OpenAIPlugin(LLMPlugin):
 
     @staticmethod
     def _serialize_message(message: UnifiedMessage) -> dict[str, Any]:
-        result: dict[str, Any] = {"role": message.role, "content": message.content}
-        if message.name:
-            result["name"] = message.name
-        if message.tool_call_id:
-            result["tool_call_id"] = message.tool_call_id
-        if message.tool_calls:
-            result["tool_calls"] = [dict(call.__dict__) for call in message.tool_calls]
-        return result
+        return serialize_openai_message(message)
 
     async def _request(
         self,
@@ -167,24 +146,28 @@ class OpenAIPlugin(LLMPlugin):
         if payload is not None:
             headers["Content-Type"] = "application/json"
         timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
-        handle = make_cancel_handle()
-        # The injected transport may be the legacy 5-arg urllib signature or the
-        # interruptible 6-arg form. Adapt the call so both keep working, but
-        # prefer the interruptible path when available so task cancel can
-        # release the socket.
-        if self._interruptible:
-            status, body, _headers = await asyncio.to_thread(
-                interruptible_urlopen, method, f"{base_url}{path}", headers, payload, timeout_ms, handle
-            )
-        else:
-            status, body = await asyncio.to_thread(
-                self._transport, method, f"{base_url}{path}", headers, payload, timeout_ms
-            )
-        if status == -1:
-            if handle.cancelled:
-                raise provider_transport_error(self.provider, "OpenAI API 调用", "cancelled", timeout_ms=timeout_ms)
-            raise provider_transport_error(self.provider, "OpenAI API 调用", "timeout", timeout_ms=timeout_ms)
-        return status, body
+        return await request_text(self.provider, method, f"{base_url}{path}", headers, payload, timeout_ms, self._custom_transport)
+
+    async def _stream_request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None,
+        config: ProviderConfig,
+        context: ChatContext | None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        runtime = resolve_provider_runtime(self.provider, config)
+        base_url = (runtime.base_url or "https://api.openai.com/v1").rstrip("/")
+        headers = {"Authorization": f"Bearer {runtime.api_key}", **runtime.headers}
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
+        events = request_events(self.provider, method, f"{base_url}{path}", headers, payload, timeout_ms, self._custom_transport)
+        try:
+            async for event in events:
+                yield event
+        finally:
+            await events.aclose()
 
     @staticmethod
     def _parse_usage(data: Mapping[str, Any]) -> UnifiedUsage:
@@ -196,10 +179,17 @@ class OpenAIPlugin(LLMPlugin):
 
     @staticmethod
     def _parse_json(status: int, body: str) -> dict[str, Any]:
+        if not 200 <= status < 300:
+            raise provider_http_error("openai", status, body, "openai")
         try:
             data = cast(dict[str, Any], json.loads(body))
-        except json.JSONDecodeError as error:
-            raise PolyLLMError("PROVIDER_ERROR", f"OpenAI 返回无效 JSON: {body[:200]}", {"status": status}) from error
+            if not isinstance(data, dict):
+                raise ValueError("Expected JSON object")
+        except (ValueError, TypeError):
+            # P1 #1/#8: a 2xx body that is not valid JSON is a "parse" failure.
+            # Do NOT embed the unfiltered body (it may echo the auth query);
+            # provider_parse_error carries a masked, truncated summary instead.
+            raise provider_parse_error("openai", status if status else None, "OpenAI 响应解析") from None
         if status < 200 or status >= 300:
             raise provider_http_error("openai", status, data, "OpenAI API 错误")
         return data

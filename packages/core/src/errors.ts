@@ -118,7 +118,7 @@ export function parseRetryAfter(
   const trimmed = headerValue.trim()
   if (trimmed === '') return undefined
   const asSeconds = Number(trimmed)
-  if (Number.isFinite(asSeconds)) return asSeconds
+  if (Number.isFinite(asSeconds)) return asSeconds >= 0 ? asSeconds : undefined
   const asDate = Date.parse(trimmed)
   if (!Number.isNaN(asDate)) {
     return Math.max(0, (asDate - nowMs) / 1000)
@@ -150,14 +150,40 @@ export function extractRequestId(
 
 /**
  * Mask credential-looking substrings so error messages and details never leak
- * keys or Bearer tokens. Masks `sk-...`, `Bearer ...`, and `Authorization: ...`
- * patterns, replacing the sensitive portion with `***`.
+ * keys, Bearer tokens, or URL query credentials.
+ *
+ * Patterns covered (docs/protocol.md §7.2):
+ *  - `sk-...` style provider keys
+ *  - `Authorization: <value>` headers (both the header form and the bare Bearer form)
+ *  - `Bearer <token>`
+ *  - URL query values for well-known credential keys
+ *    (`key`, `api_key`, `apikey`, `token`, `access_token`, `secret`,
+ *    `client_secret`, `session`) — a provider error that echoes the request
+ *    URL will no longer leak `?key=...` or `?token=...`.
  */
-export function maskSensitive(text: string): string {
+export function maskSensitive(text: string, knownSecrets: readonly string[] = []): string {
   let masked = text
+  // sk-style keys first so that a bare key (not in a Bearer/Authorization
+  // context) is masked even when no header or Bearer prefix is present.
   masked = masked.replace(/\bsk-[A-Za-z0-9_-]{8,}/g, 'sk-***')
+  // Authorization header form. The value may be "Bearer TOKEN" (two words) or
+  // a bare token; match up to a comma/semicolon/quote that terminates a
+  // JSON string or CSV list — NOT a space, so the full two-word value is
+  // masked in one pass.
+  masked = masked.replace(/\bAuthorization:\s*(Bearer\s+)?[A-Za-z0-9._~+/=-]+/gi, 'Authorization: ***')
+  // Bare Bearer tokens not preceded by an Authorization header.
   masked = masked.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer ***')
-  masked = masked.replace(/(Authorization\s*:\s*)Bearer\s+/gi, '$1')
+  // URL query credential values (?key=..., &token=..., ?api_key=...).
+  masked = masked.replace(
+    /([?&](?:key|api_key|apikey|token|access_token|secret|client_secret|session)=)[^&\s"']+/gi,
+    '$1***',
+  )
+  // Any explicitly provided runtime secret (the live API key for this call) is
+  // masked even when it does not match the `sk-`/`Bearer` shapes above.
+  for (const secret of knownSecrets) {
+    if (!secret) continue
+    masked = masked.split(secret).join('***')
+  }
   return masked
 }
 
@@ -168,7 +194,11 @@ export function maskSensitive(text: string): string {
  * and truncated to `maxLength` characters so unfiltered bodies never reach
  * the caller's log or error message (docs/protocol.md §7.2).
  */
-export function extractErrorExcerpt(body: unknown, maxLength: number = 200): string {
+export function extractErrorExcerpt(
+  body: unknown,
+  maxLength: number = 200,
+  knownSecrets: readonly string[] = [],
+): string {
   let raw: string
   if (typeof body === 'string') {
     raw = body
@@ -191,7 +221,7 @@ export function extractErrorExcerpt(body: unknown, maxLength: number = 200): str
   } else {
     raw = String(body)
   }
-  const masked = maskSensitive(raw)
+  const masked = maskSensitive(raw, knownSecrets)
   return masked.length > maxLength ? masked.slice(0, maxLength) + '…' : masked
 }
 
@@ -221,14 +251,15 @@ export function providerHttpError(
   headers: { get?: (name: string) => string | null } | null,
   body: Record<string, unknown> | string | null,
   label: string,
+  knownSecrets: readonly string[] = [],
 ): PolyLLMError {
   const category = classifyHttpStatus(status)
   const parsedBody = typeof body === 'string' ? tryParseJson(body) : body
   const requestId = extractRequestId(headers, parsedBody ?? null)
   const retryAfterSeconds = parseRetryAfter(headers?.get?.('retry-after') ?? null)
-  const excerpt = extractErrorExcerpt(parsedBody ?? body ?? '')
+  const excerpt = extractErrorExcerpt(parsedBody ?? body ?? '', 200, knownSecrets)
   const extra: Record<string, unknown> = { label }
-  if (requestId !== undefined) extra.requestId = requestId
+  if (requestId !== undefined) extra.requestId = maskSensitive(requestId, knownSecrets)
   if (retryAfterSeconds !== undefined) extra.retryAfterSeconds = retryAfterSeconds
   return providerError(provider, status, category, `${label}: ${status} ${excerpt}`, extra)
 }
@@ -236,15 +267,34 @@ export function providerHttpError(
 /**
  * Classify a `fetch` rejection into an `ErrorCategory`.
  *
- * - DOMException `TimeoutError` -> `timeout`
- * - DOMException `AbortError`   -> `cancelled` (user-initiated abort); when
- *   `hasTimeout` is true the caller can treat it as `timeout` via the helper
+ * - `TimeoutError` DOMException -> `timeout`
+ * - `AbortError` where the **user-provided** signal (not the timeout signal)
+ *   is the one that fired -> `cancelled`
+ * - `AbortError` where only a `timeoutMs` was set and its derived timeout
+ *   signal fired -> `timeout`
  * - anything else (network/DNS/socket) -> `connection`
+ *
+ * `userSignal` is the caller's `AbortSignal` (may be undefined) and
+ * `timeoutSignal` is the signal derived from `timeoutMs`.
  */
-export function classifyFetchError(error: unknown, hasTimeout: boolean): ErrorCategory {
+export function classifyFetchError(
+  error: unknown,
+  userSignal: AbortSignal | undefined,
+  timeoutSignal: AbortSignal | undefined,
+): ErrorCategory {
+  if (userSignal?.aborted) return 'cancelled'
+  if (timeoutSignal?.aborted) return 'timeout'
   if (error instanceof DOMException) {
     if (error.name === 'TimeoutError') return 'timeout'
-    if (error.name === 'AbortError') return hasTimeout ? 'timeout' : 'cancelled'
+    if (error.name === 'AbortError') {
+      const userFired = userSignal?.aborted === true
+      const timeoutFired = timeoutSignal?.aborted === true
+      if (timeoutFired && !userFired) return 'timeout'
+      if (userFired) return 'cancelled'
+      // Neither fired but we still got an AbortError: a user cancel is the
+      // safer default (a user cancel is never retried).
+      return timeoutSignal ? 'timeout' : 'cancelled'
+    }
   }
   return 'connection'
 }
@@ -255,15 +305,20 @@ function describeFetchFailure(category: ErrorCategory, label: string, timeoutMs?
   return `${label}: 连接失败`
 }
 
-/** Build a `PROVIDER_ERROR` for a `fetch` rejection (no HTTP status available). */
+/**
+ * Build a `PROVIDER_ERROR` for a `fetch` rejection (no HTTP status available).
+ * `userSignal` / `timeoutSignal` let the classifier tell a user cancel apart
+ * from a timeout when both are in play.
+ */
 export function providerTransportError(
   provider: string,
   error: unknown,
   label: string,
-  hasTimeout: boolean,
+  userSignal: AbortSignal | undefined,
   timeoutMs?: number,
+  timeoutSignal?: AbortSignal | undefined,
 ): PolyLLMError {
-  const category = classifyFetchError(error, hasTimeout)
+  const category = classifyFetchError(error, userSignal, timeoutSignal)
   const details: Record<string, unknown> = {
     provider,
     category,

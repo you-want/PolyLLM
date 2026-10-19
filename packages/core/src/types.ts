@@ -20,6 +20,10 @@ export interface UnifiedToolCall {
 export interface StreamToolCall {
   id?: string | undefined
   type?: 'function' | undefined
+  /** 0-based index into the provider's parallel tool-call array. Set by providers
+   *  that deliver multiple tool calls in one message (e.g. OpenAI's ``tool_calls``
+   *  array). Absent when the provider does not emit an index. */
+  index?: number | undefined
   function?: {
     name?: string | undefined
     arguments?: string | undefined
@@ -163,7 +167,7 @@ export interface ChatContext {
  */
 export interface RetryPolicy {
   /** Maximum number of retries after the initial attempt. Total attempts =
-   * `maxAttempts` is the default (2 retries → up to 3 attempts). */
+   * maxAttempts + 1. Default: 2 retries → up to 3 attempts. */
   maxAttempts?: number
   /** Base delay in milliseconds for exponential backoff (default 500). */
   baseDelayMs?: number

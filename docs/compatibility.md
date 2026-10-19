@@ -16,17 +16,17 @@
 | 流式（SSE / NDJSON） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | 工具调用（完整对话+回传） | ✓ | ✓ | ✓ | ◇ | ✓ | ✓ |
 | 流式工具参数拼接 | ✓ | ✓ | ✓ | ◇ | ✓ | ✓ |
-| 图片输入 | — | — | ✓ | ◇ | —（P1） | — |
-| JSON Mode | — | — | — | ◇ | — | — |
+| 图片输入 | ✓ | — | ✓ | ◇ | —（P1） | — |
+| JSON Mode | ✓ | ✓ | — | ◇ | — | — |
 | 模型发现 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 动态模型（未列模型） | ✓ | ✓ | — | ✓ | ✓ | ✓ |
+| 动态模型（未列模型） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | 超时（`timeoutMs`） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | 取消（`AbortSignal`） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | 可中止 transport（Python） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | 显式重试（默认关闭） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-> Python 侧对应能力（snake_case API、`to_thread` 取消 + 可中止 transport、
-> `with_retries` 原语）与 TS 侧一致，见 `docs/protocol.md` §11。
+> Python 侧对应能力（snake_case API、默认可中止 transport、
+> 公开 `retries` 及 `with_retries` 原语）与 TS 侧一致，见 `docs/protocol.md` §11。
 
 ### 说明
 
@@ -48,3 +48,10 @@
   `docs/migrations/v0.3-to-v0.4.md` 的 before/after 对照。
 - 每项 **待验证** 标记需真实服务确认后升级为 ✓ 或保持 ◇，并在本节追加记录
   （含日期、模型、网关）。0.4.0 发版前未验证项保持保守声明，不写入 ✓。
+
+
+### 0.4.0 修复验收范围
+
+- 生命周期测试覆盖六类官方默认 transport：TypeScript reader 提前停止/解析失败释放，Python task 取消与 `aclose()` 断连、首块在 EOF 前交付。Python 的五参数同步自定义 transport 仍由注入方管理资源；裸 `async for` 提前 break 请配合 `contextlib.aclosing`。
+- 共享协议门禁执行模型别名、动态能力拒绝、工具 index、usage 缺省、HTTP 分类及 SSE/NDJSON；隔离变异测试验证门禁会拒绝损坏的样例和期望。
+- 表中 ✓ 表示本地 mock/协议测试覆盖；真实供应商和不同网关的行为仍需具体服务验证。

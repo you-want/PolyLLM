@@ -55,9 +55,9 @@ describe('computeBackoffMs', () => {
     expect(computeBackoffMs(undefined, 3, 5, () => 0)).toBe(3000)
   })
 
-  it('caps Retry-After under maxDelay too', () => {
-    // 60s retry-after → capped to 8000ms
-    expect(computeBackoffMs(undefined, 60, 1, () => 0)).toBe(8000)
+  it('treats Retry-After as a hard floor (never capped)', () => {
+    // A 60s Retry-After must be honored in full, not truncated to the 8000ms cap.
+    expect(computeBackoffMs(undefined, 60, 1, () => 0)).toBe(60000)
   })
 })
 
@@ -157,8 +157,8 @@ describe('withRetries', () => {
         },
         { policy: { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 2 }, signal: controller.signal, now: () => 0, random: () => 0 },
       ),
-    ).rejects.toMatchObject({ details: { category: 'server' } })
-    expect(calls).toBe(1)
+    ).rejects.toMatchObject({ details: { category: 'cancelled' } })
+    expect(calls).toBe(0)
   })
 
   it('bounds retries by the total deadline budget', async () => {
@@ -174,9 +174,18 @@ describe('withRetries', () => {
         { policy: { maxAttempts: 5, baseDelayMs: 1, maxDelayMs: 2 }, now: () => nowMs, random: () => 0, deadlineMs: 2000 },
       ),
     ).rejects.toMatchObject({ details: { category: 'timeout' } })
-    // Attempt 1 at t=0 (0 elapsed), attempt 2 at t=1000, attempt 3 at t=2000 →
-    // now()-started = 2000, not > 2000 so it proceeds; attempt 4
-    // would be t=3000 > 2000 → budget exceeded. So 3 attempts run.
-    expect(calls).toBe(3)
+    // No attempt starts at or after the deadline.
+    expect(calls).toBe(2)
   })
+})
+
+it('does not skip Retry-After when the first attempt consumes the exact budget', async () => {
+  let now = 0
+  let calls = 0
+  await expect(withRetries(async () => {
+    calls++
+    now = 10
+    throw new PolyLLMError('PROVIDER_ERROR', 'busy', { category: 'server', retryAfterSeconds: 60 })
+  }, { policy: { maxAttempts: 2, baseDelayMs: 0 }, deadlineMs: 10, now: () => now })).rejects.toMatchObject({ details: { category: 'timeout' } })
+  expect(calls).toBe(1)
 })

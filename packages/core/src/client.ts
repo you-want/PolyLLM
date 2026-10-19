@@ -64,6 +64,7 @@ export class PolyLLM implements LLMClient {
       model: spec,
       signal: options.signal,
       timeoutMs: options.timeoutMs,
+      retries: options.retries,
     })
   }
 

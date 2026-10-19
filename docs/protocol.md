@@ -1,6 +1,6 @@
 # PolyLLM 协议与生命周期规范（v0.4.0 草案）
 
-> 状态：M1 草案，随 T1 冻结。本文件是 0.4.0 各任务（T2 错误分类、T3 超时/取消/重试、T4 契约门禁、T5 兼容矩阵）的字段与语义依据；实现变动时须同步更新本文。
+> 状态：0.4.0 实现契约。本文件是 0.4.0 各任务（T2 错误分类、T3 超时/取消/重试、T4 契约门禁、T5 兼容矩阵）的字段与语义依据；实现变动时须同步更新本文。
 > 配套阅读：[api-stability.md](api-stability.md)、[plans/v0.4.0-plan.md](plans/v0.4.0-plan.md)。
 
 ## 1. 设计目标与边界
@@ -24,24 +24,24 @@
 | `stream` | boolean | 否 | 默认 `false`；`chatStream()` 调用时 Core 强制 `true` |
 | `jsonMode` | boolean | 否 | 默认 `false`。语义是"JSON 对象输出"，不等于"支持严格 JSON Schema 输出"；能力缺失时按 `jsonMode` 能力声明拒绝（见 §5） |
 | `tools` | UnifiedTool[] | 否 | 缺省或空数组等价 |
-| 响应 `id` / `model` | string | 是 | `model` 为请求时解析出的模型 id，不回填供应商返回的原始模型名 |
+| 响应 `id` / `model` | string | 是 | 优先保留供应商返回的模型名；缺省时使用请求解析出的模型 id |
 | 响应 `usage` | UnifiedUsage | 是 | 供应商未返回时按 §4.2 规则缺省为零值 |
 | 流 chunk `delta` | 见下 | 是 | 空增量（全字段缺席）合法，调用方须容忍 |
 
 **流式 delta 冻结（新增类型，两端同步）**
 
-0.3.0 差异：TS `delta` 已定型 `{ role?, content?, toolCalls? }`，Python `delta` 是宽泛 `dict[str, Any]`。0.4.0 把 Python 收窄为与 TS 等价的强类型：
+0.3.0 差异：TS `delta` 已定型 `{ role?, content?, toolCalls? }`，Python `delta` 是宽泛 `dict[str, Any]`。0.4.0 提供兼容原有 dict 访问的属性类型：
 
 ```python
-@dataclass(frozen=True)
-class StreamDelta:
-    role: Optional[str] = None
-    content: Optional[str] = None
-    tool_calls: Optional[tuple[StreamToolCall, ...]] = None  # 序列化为 toolCalls
+class StreamDelta(dict[str, Any]):
+    # 可读属性；.get()/下标仍可用，工具条目保持 dict。
+    role: Optional[str]
+    content: Optional[str]
+    tool_calls: Optional[list[dict[str, Any]]]
 ```
 
 - 文本增量只允许 `content`；工具参数增量只允许 `toolCalls`，不混用。
-- 工具调用拼接：同一 `id`（无 `id` 时按首次出现的 `toolCalls` 顺序下标）的 `function.name` 与 `function.arguments` 字符串按到达顺序拼接；`arguments` 是**增量字符串**，拼接结果必须是可解析 JSON 才视为有效工具调用。
+- 工具调用拼接：同一 `id`（无 `id` 时按 wire 携带的 `index`，仅缺少 index 时回退当前数组下标）的 `function.name` 与 `function.arguments` 字符串按到达顺序拼接；`arguments` 是**增量字符串**，拼接结果必须是可解析 JSON 才视为有效工具调用。
 - 流中结束：`finishReason` 以最后一个携带它的 chunk 为准；流异常终止（连接中断、供应商报错）不补造 `finishReason`，抛出对应错误（见 §7）。
 - `usage` 在流式中通常只出现在最后一个 chunk；缺省时不回填到前序 chunk。
 - 不把底层网络分片直接当完整事件：插件必须按供应商协议（SSE `data:` 行、NDJSON 行）聚合，一条 wire 消息对应 0 个或多个逻辑 chunk。
@@ -112,7 +112,7 @@ promptTokens, completionTokens, totalTokens: number（camelCase JSON；Python �
 
 - `paramPolicy`：`strict`（默认）越界即抛 `UNSUPPORTED_PARAMETER`；`lenient` 钳制到 `[min, max]`；`auto` 缺失且能力允许时用 `default` 补齐，越界仍报错。
 - 能力拒绝：请求使用了 `ModelCapabilities` 声明为 `false` 的能力（如对 `vision=false` 的模型传 `image_url` part，对 `jsonMode=false` 的模型设 `jsonMode=true`）：
-  - 0.4.0 行为：插件抛 `UNSUPPORTED_PARAMETER`，`details` 含 `{"provider", "capability"}`，**不静默丢弃、不伪装成功**。
+  - 0.4.0 行为：插件抛 `UNSUPPORTED_PARAMETER`，`details` 含 `parameter`（如 `messages[content=image_url]`），**不静默丢弃、不伪装成功**。
   - 兼容性：0.3.0 中部分插件对不支撑能力静默忽略；升级为报错属于破坏性变化，列入迁移指南（§8 D6）。
 
 ## 6. 生命周期：超时与取消
@@ -126,7 +126,7 @@ promptTokens, completionTokens, totalTokens: number（camelCase JSON；Python �
 - 取消/超时后的保证（可对外承诺的）：
   - 发请求前取消：不发请求，直接抛取消错误。
   - 等响应/流读取中取消：终止当前传输（TS: 中断 `fetch`/`reader`；Python: 强制关闭底层 socket，见 §9 证据），不继续后台读取、不再重试。
-  - 调用方提前退出迭代（`break` 出 `chatStream`）：等价于取消，资源释放同上；但**不保证供应商侧停止生成**（OpenAI/Anthropic 流断连后供应商可能继续生成并计费），文档如实说明。
+  - TS 调用方提前退出迭代（`break` 出 `chatStream`）、Python 显式 `aclose()` 或 `contextlib.aclosing` 退出：等价于取消，资源释放同上；但**不保证供应商侧停止生成**（OpenAI/Anthropic 流断连后供应商可能继续生成并计费），文档如实说明。
   - 超时与外部取消竞争：先到者生效，错误分类为"取消"（外部取消）或"超时"（预算耗尽），二者都不进入重试。
 
 ### 6.2 取消的对外错误表达
@@ -220,7 +220,7 @@ ChatContext:
 - **D1 错误分类走 `details`，不新增 `code`**。保留全部 9 个现有错误码；新分类字段名 T2 冻结（暂用 §7 命名）。
 - **D2 Python 公共 API 不重命名**。snake_case 保持，仅通过 JSON 序列化映射对齐；`ChatContext` 已存在字段不动。
 - **D3 `ChatOptions`/`ChatContext` 只加可选字段**。TS 加 `retries`，Python client 加 `timeout_ms` 关键字参数，均为可选、缺省行为不变（重试默认关闭）。
-- **D4 流式 delta 收窄为强类型**（§2.1），Python `StreamDelta` 替换宽泛 `dict[str, Any]`；已有调用方读 `chunk.delta["content"]` 的代码改为属性访问前必须先迁移——此项进迁移指南 before/after。
+- **D4 流式 delta 收窄为强类型**（§2.1），Python `StreamDelta` 为 dict 的兼容子类，增加属性访问，保留已有 `.get()` 和下标代码。
 - **D5 usage 缺省归零 + `providerMetadata.usageUnavailable` 标记**（§4.2）。
 - **D6 能力拒绝从静默忽略改为抛 `UNSUPPORTED_PARAMETER`**（§5）。
 - **D7 取消/超时保证**按 §6.1 定义；"调用方提前退出迭代"不再要求供应商停止生成，只保证本端资源释放。
@@ -261,7 +261,7 @@ ChatContext:
 
 ### 9.3 依赖与版本影响记录
 
-- 不引入新依赖（纯标准库 socket/threading 原语），Python 版本支持不变（3.9+，与 0.3.0 基线一致）。
+- 不引入新依赖（纯标准库 socket/threading 原语），Python 版本支持不变（3.10+）。
 - 插件注入兼容性：`__init__(self, transport=None)` 签名不变；注入自定义 transport 的既有测试仍通过（新 transport 仅是默认实现替换 + 新增取消钩子）。
 - 待 M2 验证点：SSE 流读取期间 `shutdown` 对 `readline` 类分块读的行为；多连接并发下的注册表竞态。
 
@@ -279,20 +279,22 @@ ChatContext:
 
 ### 11.1 重试（默认关闭）
 
-- 类型：`RetryPolicy`（TS `ChatOptions.retries` / `ChatContext.retries`；Python `with_retries` 策略 dict）。
+- 类型：`RetryPolicy`（TS `ChatOptions.retries` / `ChatContext.retries`；Python `chat` / `chat_stream` 的 `retries` dict，以及独立的 `with_retries` 原语）。
 - 默认（不传）：**零重试**，行为与 0.3.0 一致，升级不会自动增加调用次数/费用。
 - 开启后默认最多 2 次重试（共 3 次尝试），指数退避 base 500ms × 2^n，jitter 0.25，单次上限 8000ms；有效 `Retry-After` 优先于退避。
 - 仅对可重试类别（`rate_limited`/`server`/`connection`）重试；`auth`/`permission`/`invalid_request`/`parse`/`timeout`/`cancelled` 一律不重试。
 - 受总时间预算 `timeoutMs` 约束：预算耗尽 → `category=timeout`，不再重试。
-- 取消不重试；首个用户可见流 chunk 之后不自动重放（本层只包 `chat`，`chatStream` 不进自动重试，避免文本/工具重复）。
-- 实现层：TS `packages/core/src/retry.ts`（`withRetries` / `computeBackoffMs` / `maxAttempts`，clock/random 可注入），Python `polyllm_core/retry.py` 同构。6 类 TS 插件的 `chat` 已接入；Python 插件的 `chat` 在 0.4.0 保持单发，`with_retries` 作为公开原语供调用方显式使用（避免默认行为变化）。
+- 取消不重试；首个用户可见流 chunk 之后不自动重放（流仅在首个可见 chunk 前可重试，之后不重放）。
+- 实现层：TS `packages/core/src/retry.ts`（`withRetries` / `computeBackoffMs` / `maxAttempts`，clock/random 可注入），Python `polyllm_core/retry.py` 同构。6 类 TS 插件接入共享 HTTP 生命周期；Python 公开 client 是唯一重试层。两端未设置 `retries` 均只发一次；`maxAttempts` 表示重试次数，2 表示共 3 次尝试。
 
 ### 11.2 可中止 Python transport
 
 - `polyllm_core.transport.interruptible_urlopen` + `CancelHandle`：worker 线程注册活动 socket，`cancel()` 调 `shutdown()` 强制关闭，读阻塞立即 `OSError` 退出（§9.2 验证）。无新依赖（`http.client`/`socket` 标准库）。
-- 插件接入：`OpenAIPlugin(transport=None, interruptible=True)` 默认走可中断路径；注入自定义 5 参 `transport` 时自动回退旧行为，`interruptible=False` 可显式关闭。
-- 超时/取消语义：`status == -1` 时，`handle.cancelled` → `cancelled`，否则 → `timeout`，均以 `PROVIDER_ERROR` 抛出（复用 T2 分类字段）。
-- 边界：本阶段覆盖"等待响应"；SSE 流读取阶段的 socket 注册列为 M2 待验证点（§9.3），流式取消暂不承诺供应商停止生成（§6.1）。
+- 六类官方插件默认共享 `request_text` / `request_events`；活动 socket 在连接、TLS、响应等待及逐块读取阶段均注册。取消先 shutdown/close，再传播原生 `asyncio.CancelledError`；socket 超时分类为 `timeout`，网络错误为 `connection`。
+- 流通过 `HTTPResponse.read1` 增量读取，SSE/NDJSON 支持 CRLF、多行 data、UTF-8 跨分片和 EOF 校验；坏尾部不吞掉此前已发出的正常事件。
+- 五参数同步自定义 `transport` 保持兼容；其内部资源需自定义实现自行释放，SDK 只能取消等待。`OpenAIPlugin(interruptible=False)` 显式使用旧同步 transport，同样适用此限制。系统 DNS 解析未返回时不能强行终止解析线程，取消后会关闭随后注册的 socket。
+- Python 提前退出流使用 `async with contextlib.aclosing(llm.chat_stream(...)) as stream:`，裸 `async for` 的 `break` 不保证立即关闭生成器。
+- 回归证据：`python/tests/test_lifecycle.py` 对六类默认插件验证 task 取消断连、首块在 EOF 前到达、显式关闭断连，以及公开重试、超时和 header 诊断。
 
 ### 11.3 默认值决策
 
@@ -305,3 +307,10 @@ ChatContext:
 
 
 完整迁移示例在 `docs/migrations/v0.3-to-v0.4.md`（T5 交付）。
+
+
+## 12. 可执行协议门禁
+
+`pnpm verify:protocol` 使用 Ajv 2020-12 与 Python jsonschema 校验共享 fixture，随后通过真实公开 SDK、provider wire 和逐字节分帧器执行请求、响应、工具、流、错误与模型解析。`source` / `sourceEvents` 是供应商输入，`response` / `chunks` / `expectedChunks` 是独立期望；禁止把期望复制成运行结果。两端实际结果逐项断言后严格 diff，保留空 delta、空文本和零用量。
+
+门禁同时运行隔离变异检查：改坏 raw SSE、预期 chunks、HTTP 分类或模型解析期望，两端均必须失败。npm 和 Python 发布 workflow 在上传前执行此门禁。JSON Schema/jsonschema 仅为开发验收依赖，不增加 SDK 运行依赖。

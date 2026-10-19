@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "PolyLLM · 万剑归宗 — a plugin-based unified LLM access layer.",
+  "description": "PolyLLM \u00b7 \u4e07\u5251\u5f52\u5b97 \u2014 a plugin-based unified LLM access layer.",
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "build": "pnpm --filter @you-want/polyllm-studio-app... build && pnpm -r run build",
@@ -19,7 +19,7 @@
     "verify:integration": "pnpm --filter @you-want/polyllm-integration... build && pnpm --filter @you-want/polyllm-integration test",
     "verify:packed-install": "node scripts/verify-packed-install.mjs",
     "verify:generated-projects": "node scripts/verify-generated-projects.mjs",
-    "verify:protocol": "pnpm build:core && node scripts/verify-protocol.mjs && PYTHONPATH=python/packages/core/src node scripts/verify-protocol.mjs --python && node scripts/verify-protocol.mjs --diff",
+    "verify:protocol": "pnpm --filter @you-want/polyllm-openai --filter @you-want/polyllm-gemini --filter @you-want/polyllm-openai-compatible... build && node scripts/verify-protocol.mjs && node scripts/verify-protocol.mjs --python && node scripts/verify-protocol.mjs --diff && node scripts/verify-protocol-mutations.mjs",
     "build:core": "pnpm --filter @you-want/polyllm-core build",
     "verify:stability": "pnpm build && pnpm test && pnpm typecheck && pnpm verify:packages && pnpm verify:integration && pnpm verify:generated-projects && pnpm verify:protocol && pnpm verify:packed-install && pnpm test:python && pnpm typecheck:python && pnpm verify:python && pnpm build:python && python3 -m twine check python/dist/* && pnpm verify:python-install",
     "typecheck": "pnpm -r run typecheck",
@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.7",
+    "ajv": "^8.20.0",
     "publint": "^0.3.14"
   }
 }

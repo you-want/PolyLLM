@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from polyllm_core.transport import request_text, request_events
+from polyllm_core.wire import parse_openai_stream_event
+
 import asyncio
 import json
-from typing import Any, AsyncIterator, Callable, Literal, cast
+from typing import Any, AsyncGenerator, AsyncIterator, Callable, Literal, cast
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -10,6 +13,7 @@ from polyllm_core.config import resolve_provider_runtime
 from polyllm_core.errors import (
     PolyLLMError,
     provider_http_error,
+    provider_parse_error,
 )
 from polyllm_core.types import (
     ChatContext,
@@ -47,6 +51,7 @@ class GeminiPlugin(LLMPlugin):
 
     def __init__(self, transport: Transport | None = None):
         self._transport = transport or urllib_transport
+        self._custom_transport = transport
 
     async def chat(
         self,
@@ -94,7 +99,7 @@ class GeminiPlugin(LLMPlugin):
                 completion_tokens=completion_tokens,
                 total_tokens=usage.get("totalTokenCount") or prompt_tokens + completion_tokens,
             ),
-            provider_metadata=data,
+            provider_metadata=data if data.get("usageMetadata") is not None else {**data, "usageUnavailable": True},
         )
 
     async def chat_stream(
@@ -107,54 +112,54 @@ class GeminiPlugin(LLMPlugin):
         base_url = (runtime.base_url or DEFAULT_BASE_URL).rstrip("/")
         url = f"{base_url}/models/{normalize_gemini_model_id(context.model.id)}:streamGenerateContent?alt=sse"
         body = self._build_body(request)
-        status, text = await self._request("POST", url, body, runtime, context)
-        if status < 200 or status >= 300:
-            raise provider_http_error("gemini", status, text, "Gemini API 错误")
-        for event_payload in parse_sse_events(text):
-            event = json.loads(event_payload)
-            candidate = (event.get("candidates") or [{}])[0]
-            parts = candidate.get("content", {}).get("parts", [])
-            for part in parts:
-                if "text" in part:
-                    yield UnifiedStreamChunk(id="", model=context.model.id, delta={"content": part.get("text", "")})
-                elif "functionCall" in part:
+        events = self._stream_request("POST", url, body, runtime, context)
+        try:
+            async for event in events:
+                candidate = (event.get("candidates") or [{}])[0]
+                parts = candidate.get("content", {}).get("parts", [])
+                for part in parts:
+                    if "text" in part:
+                        yield UnifiedStreamChunk(id="", model=context.model.id, delta={"content": part.get("text", "")})
+                    elif "functionCall" in part:
+                        yield UnifiedStreamChunk(
+                            id="",
+                            model=context.model.id,
+                            delta={
+                                "tool_calls": [
+                                    {
+                                        "id": f"call_{len(parts) - 1}",
+                                        "type": "function",
+                                        "function": {
+                                            "name": part.get("functionCall", {}).get("name", ""),
+                                            "arguments": json.dumps(part.get("functionCall", {}).get("args", {})),
+                                        },
+                                    }
+                                ]
+                            },
+                        )
+                usage = event.get("usageMetadata")
+                if usage:
+                    prompt_tokens = usage.get("promptTokenCount", 0)
+                    completion_tokens = usage.get("candidatesTokenCount", 0)
                     yield UnifiedStreamChunk(
                         id="",
                         model=context.model.id,
-                        delta={
-                            "tool_calls": [
-                                {
-                                    "id": f"call_{len(parts) - 1}",
-                                    "type": "function",
-                                    "function": {
-                                        "name": part.get("functionCall", {}).get("name", ""),
-                                        "arguments": json.dumps(part.get("functionCall", {}).get("args", {})),
-                                    },
-                                }
-                            ]
-                        },
+                        delta={},
+                        usage=UnifiedUsage(
+                            prompt_tokens=prompt_tokens,
+                            completion_tokens=completion_tokens,
+                            total_tokens=usage.get("totalTokenCount") or prompt_tokens + completion_tokens,
+                        ),
                     )
-            usage = event.get("usageMetadata")
-            if usage:
-                prompt_tokens = usage.get("promptTokenCount", 0)
-                completion_tokens = usage.get("candidatesTokenCount", 0)
-                yield UnifiedStreamChunk(
-                    id="",
-                    model=context.model.id,
-                    delta={},
-                    usage=UnifiedUsage(
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
-                        total_tokens=usage.get("totalTokenCount") or prompt_tokens + completion_tokens,
-                    ),
-                )
-            if candidate.get("finishReason"):
-                yield UnifiedStreamChunk(
-                    id="",
-                    model=context.model.id,
-                    delta={},
-                    finish_reason=self._map_finish_reason(candidate.get("finishReason")),
-                )
+                if candidate.get("finishReason"):
+                    yield UnifiedStreamChunk(
+                        id="",
+                        model=context.model.id,
+                        delta={},
+                        finish_reason=self._map_finish_reason(candidate.get("finishReason")),
+                    )
+        finally:
+            await events.aclose()
 
     async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
         runtime = resolve_provider_runtime(self.provider, config)
@@ -188,7 +193,10 @@ class GeminiPlugin(LLMPlugin):
     def _build_body(self, request: UnifiedRequest) -> dict[str, Any]:
         system_parts: list[dict[str, Any]] = []
         contents: list[dict[str, Any]] = []
+        tool_names: dict[str, str] = {}
         for message in request.messages:
+            for call in message.tool_calls:
+                tool_names[call.id] = call.function.get("name", "")
             if message.role == "system":
                 system_parts.append({"text": message.content if isinstance(message.content, str) else ""})
                 continue
@@ -199,10 +207,8 @@ class GeminiPlugin(LLMPlugin):
                         "parts": [
                             {
                                 "functionResponse": {
-                                    "name": message.name or "",
-                                    "response": json.loads(message.content or "{}")
-                                    if isinstance(message.content, str)
-                                    else {},
+                                    "name": message.name or tool_names.get(message.tool_call_id or "", ""),
+                                    "response": tool_result(message.content if isinstance(message.content, str) else ""),
                                 }
                             }
                         ],
@@ -266,10 +272,14 @@ class GeminiPlugin(LLMPlugin):
 
     @staticmethod
     def _parse_json(status: int, body: str) -> dict[str, Any]:
+        if not 200 <= status < 300:
+            raise provider_http_error("gemini", status, body, "gemini")
         try:
             data = cast(dict[str, Any], json.loads(body))
-        except json.JSONDecodeError as error:
-            raise PolyLLMError("PROVIDER_ERROR", f"Gemini 返回无效 JSON: {body[:200]}", {"status": status}) from error
+            if not isinstance(data, dict):
+                raise ValueError("Expected JSON object")
+        except (ValueError, TypeError):
+            raise provider_parse_error("gemini", status if status else None, "Gemini 响应解析") from None
         if status < 200 or status >= 300:
             raise provider_http_error("gemini", status, data, "Gemini API 错误")
         return data
@@ -286,7 +296,26 @@ class GeminiPlugin(LLMPlugin):
         if payload is not None:
             headers["Content-Type"] = "application/json"
         timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
-        return await asyncio.to_thread(self._transport, method, url, headers, payload, timeout_ms)
+        return await request_text(self.provider, method, url, headers, payload, timeout_ms, self._custom_transport)
+
+    async def _stream_request(
+        self,
+        method: str,
+        url: str,
+        payload: dict[str, Any] | None,
+        runtime: Any,
+        context: ChatContext | None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        headers = {"x-goog-api-key": runtime.api_key, **runtime.headers}
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
+        events = request_events(self.provider, method, url, headers, payload, timeout_ms, self._custom_transport)
+        try:
+            async for event in events:
+                yield event
+        finally:
+            await events.aclose()
 
 
 def urllib_transport(
@@ -320,3 +349,11 @@ def parse_sse_events(text: str) -> list[str]:
         if value:
             events.append(value)
     return events
+
+
+def tool_result(text: str) -> dict[str, Any]:
+    try:
+        value = json.loads(text)
+        return value if isinstance(value, dict) else {"result": value}
+    except ValueError:
+        return {"result": text}

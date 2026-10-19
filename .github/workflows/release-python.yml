@@ -40,6 +40,9 @@ jobs:
       publish-matrix: ${{ steps.release-plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -86,6 +89,8 @@ jobs:
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r python/requirements-dev.txt
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify:protocol
       - run: node scripts/verify-release-readiness.mjs --frozen
       - run: python python/version.py check
       - run: python python/verify_packages.py

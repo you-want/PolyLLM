@@ -8,16 +8,35 @@
       "request": {
         "model": "openai:gpt-4o-mini",
         "messages": [
-          { "role": "system", "content": "You are a helpful assistant." },
+          {
+            "role": "system",
+            "content": "You are a helpful assistant."
+          },
           {
             "role": "user",
             "content": [
-              { "type": "text", "text": "Describe this image." },
-              { "type": "image_url", "imageUrl": { "url": "https://example.com/a.png", "detail": "low" } }
+              {
+                "type": "text",
+                "text": "Describe this image."
+              },
+              {
+                "type": "image_url",
+                "imageUrl": {
+                  "url": "https://example.com/a.png",
+                  "detail": "low"
+                }
+              }
             ]
           },
-          { "role": "assistant", "content": "A picture." },
-          { "role": "tool", "toolCallId": "call_1", "content": "{\"result\": 42}" }
+          {
+            "role": "assistant",
+            "content": "A picture."
+          },
+          {
+            "role": "tool",
+            "toolCallId": "call_1",
+            "content": "{\"result\": 42}"
+          }
         ],
         "temperature": 0.2,
         "maxTokens": 256,
@@ -43,8 +62,14 @@
       "request": {
         "model": "openai:gpt-4o-mini",
         "messages": [
-          { "role": "user", "content": "hi" },
-          { "role": "tool", "content": "{\"ok\": true}" }
+          {
+            "role": "user",
+            "content": "hi"
+          },
+          {
+            "role": "tool",
+            "content": "{\"ok\": true}"
+          }
         ]
       }
     },
@@ -54,7 +79,14 @@
       "request": {
         "model": "openai:gpt-4o-mini",
         "messages": [
-          { "role": "user", "content": [{ "type": "image_url" }] }
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url"
+              }
+            ]
+          }
         ]
       }
     }

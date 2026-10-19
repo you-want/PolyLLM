@@ -185,6 +185,9 @@ export function parseOpenAIResponse(data: JsonRecord, fallbackModel: string): Un
       },
     }))
   }
+  // P1 #15: when the provider omits usage entirely, fill zeros AND flag it in
+  // providerMetadata so callers can distinguish real-zero from not-provided.
+  const hasUsage = response.usage !== undefined && response.usage !== null
   return {
     id: response.id ?? '',
     model: response.model ?? fallbackModel,
@@ -200,7 +203,7 @@ export function parseOpenAIResponse(data: JsonRecord, fallbackModel: string): Un
       completionTokens: response.usage?.completion_tokens ?? 0,
       totalTokens: response.usage?.total_tokens ?? 0,
     },
-    providerMetadata: data,
+    providerMetadata: hasUsage ? data : { ...data, usageUnavailable: true },
   }
 }
 
@@ -213,9 +216,10 @@ export function parseOpenAIStreamEvent(event: OpenAIStreamEvent, fallbackModel: 
     delta: {
       role: delta?.role === 'assistant' ? 'assistant' : undefined,
       content: delta?.content ?? undefined,
-      toolCalls: delta?.tool_calls?.map((call): StreamToolCall => ({
+      toolCalls: delta?.tool_calls?.map((call, i): StreamToolCall => ({
         id: call.id,
         type: call.type === 'function' ? 'function' : undefined,
+        index: call.index ?? i,
         function: {
           name: call.function?.name,
           arguments: call.function?.arguments,

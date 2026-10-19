@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+from polyllm_core.transport import request_text, request_events
+from polyllm_core.wire import parse_openai_stream_event
+
 import asyncio
 import json
-from typing import Any, AsyncIterator, Callable, cast
+from typing import Any, AsyncGenerator, AsyncIterator, Callable, cast
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -10,6 +15,7 @@ from polyllm_core.config import resolve_provider_runtime
 from polyllm_core.errors import (
     PolyLLMError,
     provider_http_error,
+    provider_parse_error,
 )
 from polyllm_core.types import (
     ChatContext,
@@ -38,6 +44,7 @@ class AnthropicPlugin(LLMPlugin):
 
     def __init__(self, transport: Transport | None = None):
         self._transport = transport or urllib_transport
+        self._custom_transport = transport
 
     async def chat(
         self,
@@ -59,7 +66,7 @@ class AnthropicPlugin(LLMPlugin):
             if part.get("type") == "tool_use"
         )
         finish_reason: FinishReason = (
-            "tool_calls" if tool_calls else cast(FinishReason, data.get("stop_reason", "other"))
+            "tool_calls" if tool_calls else map_finish_reason(data.get("stop_reason"))
         )
         usage = data.get("usage", {})
         return UnifiedResponse(
@@ -77,7 +84,7 @@ class AnthropicPlugin(LLMPlugin):
                 completion_tokens=usage.get("output_tokens", 0),
                 total_tokens=usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
             ),
-            provider_metadata=data.get("metadata"),
+            provider_metadata=data if data.get("usage") is not None else {**data, "usageUnavailable": True},
         )
 
     async def chat_stream(
@@ -88,26 +95,50 @@ class AnthropicPlugin(LLMPlugin):
     ) -> AsyncIterator[UnifiedStreamChunk]:
         body = self._build_body(request)
         body["stream"] = True
-        status, text = await self._request("POST", "/v1/messages", body, config, context)
-        response_id = "anthropic-stream"
+        events = self._stream_request("POST", "/v1/messages", body, config, context)
+        response_id = ""
         model = request.model
-        if status < 200 or status >= 300:
-            raise provider_http_error("anthropic", status, text, "Anthropic API 错误")
-        for event in parse_sse(text):
-            event_type = event.get("type")
-            if event_type == "content_block_delta":
-                delta = event.get("delta", {})
-                yield UnifiedStreamChunk(id=response_id, model=model, delta={"content": delta.get("text", "")})
-            elif event_type == "message_delta":
-                yield UnifiedStreamChunk(
-                    id=response_id,
-                    model=model,
-                    delta={},
-                    finish_reason=cast(
-                        FinishReason,
-                        event.get("delta", {}).get("stop_reason", "other"),
-                    ),
-                )
+        prompt_tokens = 0
+        tool_names: dict[int, str] = {}
+        try:
+            async for event in events:
+                kind = event.get("type")
+                index = event.get("index", 0)
+                if kind == "message_start":
+                    message = event.get("message", {})
+                    response_id = message.get("id", "")
+                    model = message.get("model", model)
+                    prompt_tokens = message.get("usage", {}).get("input_tokens", 0)
+                elif kind == "content_block_start":
+                    block = event.get("content_block", {})
+                    if block.get("type") == "tool_use":
+                        tool_names[index] = block.get("name", "")
+                        yield UnifiedStreamChunk(id=response_id, model=model, delta={"tool_calls": [{
+                            "index": index, "id": block.get("id"), "type": "function",
+                            "function": {"name": block.get("name", ""), "arguments": ""},
+                        }]})
+                    elif block.get("text"):
+                        yield UnifiedStreamChunk(id=response_id, model=model, delta={"content": block["text"]})
+                elif kind == "content_block_delta":
+                    delta = event.get("delta", {})
+                    if delta.get("type") == "input_json_delta":
+                        yield UnifiedStreamChunk(id=response_id, model=model, delta={"tool_calls": [{
+                            "index": index, "function": {"arguments": delta.get("partial_json", "")},
+                        }]})
+                    elif delta.get("text") is not None:
+                        yield UnifiedStreamChunk(id=response_id, model=model, delta={"content": delta["text"]})
+                elif kind == "message_delta":
+                    output = event.get("usage", {}).get("output_tokens", 0)
+                    reason = event.get("delta", {}).get("stop_reason")
+                    yield UnifiedStreamChunk(id=response_id, model=model, delta={},
+                        usage=UnifiedUsage(prompt_tokens, output, prompt_tokens + output),
+                        finish_reason=map_finish_reason(reason))
+                elif kind == "message_stop":
+                    return
+                elif kind == "error":
+                    raise provider_http_error(self.provider, 500, event, self.provider)
+        finally:
+            await events.aclose()
 
     async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
         status, body = await self._request("GET", "/v1/models", None, config, None)
@@ -125,32 +156,66 @@ class AnthropicPlugin(LLMPlugin):
         return ModelSpec(
             id=model_id,
             provider=self.provider,
-            capabilities=capabilities,
+            capabilities=replace(capabilities, vision=False, function_calling=False, json_mode=False),
             context_window=200000,
             max_output=8192,
         )
 
     def _build_body(self, request: UnifiedRequest) -> dict[str, Any]:
+        from polyllm_core.types import UnifiedContentPart
+
         system_parts = [message.content for message in request.messages if message.role == "system"]
+
+        def user_content_block(part: UnifiedContentPart) -> dict[str, Any] | None:
+            if part.type == "text":
+                return {"type": "text", "text": part.text or ""}
+            if part.type == "image_url":
+                image_url = part.image_url or {}
+                url = image_url.get("url", "")
+                # Anthropic's URL-sourced images require a remote server allowlist;
+                # base64 data URLs are accepted directly.
+                if url.startswith("data:"):
+                    mime_type = url.split(",", 1)[0].split(":", 1)[-1].split(";", 1)[0]
+                    return {
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": mime_type, "data": url.split(",", 1)[-1]},
+                    }
+                return {
+                    "type": "image",
+                    "source": {"type": "url", "url": url},
+                }
+            return None
+
+        def serialize_content(message: UnifiedMessage) -> str | list[dict[str, Any]]:
+            """Map a UnifiedMessage content/tool payload to Anthropic wire blocks.
+
+            Anthropic does not use OpenAI-style ``tool_calls`` arrays: an
+            assistant's tool calls become ``tool_use`` blocks and a tool result
+            becomes a ``tool_result`` block. This keeps the Python Anthropic
+            plugin in sync with the TS ``buildAnthropicRequestBody`` so tool
+            round-trips serialize correctly.
+            """
+            if isinstance(message.content, (tuple, list)):
+                blocks = [block for part in message.content if (block := user_content_block(part)) is not None]
+            else:
+                blocks = [{"type": "text", "text": message.content}] if message.content else []
+            if message.role == "tool":
+                return [{"type": "tool_result", "tool_use_id": message.tool_call_id or "", "content": blocks}]
+            if message.role == "assistant":
+                for call in message.tool_calls:
+                    arguments = call.function.get("arguments", "{}")
+                    try:
+                        parsed = json.loads(arguments)
+                    except (ValueError, TypeError):
+                        parsed = arguments
+                    blocks.append({"type": "tool_use", "id": call.id, "name": call.function.get("name", ""), "input": parsed})
+                return blocks
+            return blocks
+
         messages = [
             {
-                "role": message.role,
-                "content": message.content,
-                **({"tool_call_id": message.tool_call_id} if message.tool_call_id else {}),
-                **(
-                    {
-                        "tool_calls": [
-                            {
-                                "id": call.id,
-                                "type": "function",
-                                "function": dict(call.function),
-                            }
-                            for call in message.tool_calls
-                        ]
-                    }
-                    if message.tool_calls
-                    else {}
-                ),
+                "role": "user" if message.role == "tool" else message.role,
+                "content": serialize_content(message),
             }
             for message in request.messages
             if message.role in ("user", "assistant", "tool")
@@ -195,16 +260,43 @@ class AnthropicPlugin(LLMPlugin):
         if payload is not None:
             headers["Content-Type"] = "application/json"
         timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
-        return await asyncio.to_thread(
-            self._transport, method, f"{base_url}{path}", headers, payload, timeout_ms
-        )
+        return await request_text(self.provider, method, f"{base_url}{path}", headers, payload, timeout_ms, self._custom_transport)
+
+    async def _stream_request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None,
+        config: ProviderConfig,
+        context: ChatContext | None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        runtime = resolve_provider_runtime(self.provider, config)
+        base_url = (runtime.base_url or "https://api.anthropic.com").rstrip("/")
+        headers = {
+            "x-api-key": runtime.api_key,
+            "anthropic-version": "2023-06-01",
+            **runtime.headers,
+        }
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
+        events = request_events(self.provider, method, f"{base_url}{path}", headers, payload, timeout_ms, self._custom_transport)
+        try:
+            async for event in events:
+                yield event
+        finally:
+            await events.aclose()
 
     @staticmethod
     def _parse_json(status: int, body: str) -> dict[str, Any]:
+        if not 200 <= status < 300:
+            raise provider_http_error("anthropic", status, body, "anthropic")
         try:
             data = cast(dict[str, Any], json.loads(body))
-        except json.JSONDecodeError as error:
-            raise PolyLLMError("PROVIDER_ERROR", f"Anthropic 返回无效 JSON: {body[:200]}", {"status": status}) from error
+            if not isinstance(data, dict):
+                raise ValueError("Expected JSON object")
+        except (ValueError, TypeError):
+            raise provider_parse_error("anthropic", status if status else None, "Anthropic 响应解析") from None
         if status < 200 or status >= 300:
             raise provider_http_error("anthropic", status, data, "Anthropic API 错误")
         return data
@@ -236,3 +328,7 @@ def parse_sse(text: str) -> list[dict[str, Any]]:
             continue
         events.append(cast(dict[str, Any], json.loads(value)))
     return events
+
+
+def map_finish_reason(reason: Any) -> FinishReason:
+    return {"end_turn": "stop", "stop_sequence": "stop", "max_tokens": "length", "tool_use": "tool_calls"}.get(reason, "other")  # type: ignore[return-value]

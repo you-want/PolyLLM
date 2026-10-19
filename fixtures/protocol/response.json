@@ -11,16 +11,41 @@
         "choices": [
           {
             "index": 0,
-            "message": { "role": "assistant", "content": "hello" },
+            "message": {
+              "role": "assistant",
+              "content": "hello"
+            },
             "finishReason": "stop"
           }
         ],
-        "usage": { "promptTokens": 12, "completionTokens": 8, "totalTokens": 20 }
+        "usage": {
+          "promptTokens": 12,
+          "completionTokens": 8,
+          "totalTokens": 20
+        }
       },
       "expectations": {
         "usageTotal": 20,
-        "finishReason": "stop",
-        "providerMetadata": null
+        "finishReason": "stop"
+      },
+      "source": {
+        "id": "resp_1",
+        "model": "gpt-4o-mini",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "hello"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 12,
+          "completion_tokens": 8,
+          "total_tokens": 20
+        }
       }
     },
     {
@@ -32,17 +57,42 @@
         "choices": [
           {
             "index": 0,
-            "message": { "role": "assistant", "content": "ok" },
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
             "finishReason": "stop"
           }
         ],
-        "usage": { "promptTokens": 0, "completionTokens": 0, "totalTokens": 0 },
-        "providerMetadata": { "usageUnavailable": true }
+        "usage": {
+          "promptTokens": 0,
+          "completionTokens": 0,
+          "totalTokens": 0
+        },
+        "providerMetadata": {
+          "usageUnavailable": true
+        }
       },
       "expectations": {
         "usageTotal": 0,
         "finishReason": "stop",
-        "providerMetadata": { "usageUnavailable": true }
+        "providerMetadata": {
+          "usageUnavailable": true
+        }
+      },
+      "source": {
+        "id": "resp_2",
+        "model": "mock-model",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "finish_reason": "stop"
+          }
+        ]
       }
     },
     {
@@ -54,15 +104,41 @@
         "choices": [
           {
             "index": 0,
-            "message": { "role": "assistant", "content": "trunc..." },
+            "message": {
+              "role": "assistant",
+              "content": "trunc..."
+            },
             "finishReason": "length"
           }
         ],
-        "usage": { "promptTokens": 4, "completionTokens": 64, "totalTokens": 68 }
+        "usage": {
+          "promptTokens": 4,
+          "completionTokens": 64,
+          "totalTokens": 68
+        }
       },
       "expectations": {
         "finishReason": "length",
         "usageTotal": 68
+      },
+      "source": {
+        "id": "resp_3",
+        "model": "gpt-4o-mini",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "trunc..."
+            },
+            "finish_reason": "length"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 4,
+          "completion_tokens": 64,
+          "total_tokens": 68
+        }
       }
     },
     {
@@ -74,7 +150,10 @@
         "choices": [
           {
             "index": 0,
-            "message": { "role": "assistant", "content": "x" },
+            "message": {
+              "role": "assistant",
+              "content": "x"
+            },
             "finishReason": "stop"
           }
         ]

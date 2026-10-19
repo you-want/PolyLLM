@@ -74,14 +74,38 @@ class UnifiedResponse:
     provider_metadata: Optional[JsonRecord] = None
 
 
-@dataclass(frozen=True)
+class StreamDelta(dict[str, Any]):
+    """Dict-compatible delta with attribute access for the public stream API."""
+    @property
+    def content(self) -> str | None:
+        return self.get("content")
+
+    @property
+    def role(self) -> str | None:
+        return self.get("role")
+
+    @property
+    def tool_calls(self) -> list[dict[str, Any]] | None:
+        return self.get("tool_calls")
+
+
+@dataclass(frozen=True, init=False)
 class UnifiedStreamChunk:
     id: str
     model: str
-    delta: dict[str, Any]
+    delta: StreamDelta
     usage: Optional[UnifiedUsage] = None
     finish_reason: Optional[FinishReason] = None
     provider_metadata: Optional[JsonRecord] = None
+
+    def __init__(self, id: str, model: str, delta: dict[str, Any], usage: Optional[UnifiedUsage] = None,
+                 finish_reason: Optional[FinishReason] = None, provider_metadata: Optional[JsonRecord] = None):
+        object.__setattr__(self, "id", id)
+        object.__setattr__(self, "model", model)
+        object.__setattr__(self, "delta", StreamDelta(delta))
+        object.__setattr__(self, "usage", usage)
+        object.__setattr__(self, "finish_reason", finish_reason)
+        object.__setattr__(self, "provider_metadata", provider_metadata)
 
 
 @dataclass(frozen=True)
@@ -146,6 +170,9 @@ class ProviderModelInfo:
 class ChatContext:
     model: ModelSpec
     timeout_ms: Optional[int] = None
+    #: Opt-in retry policy dict (snake_case or camelCase keys); ``None`` means
+    #: no automatic retries (default, per docs/protocol.md §5).
+    retries: Optional[dict[str, Any]] = None
 
 
 class LLMPlugin(ABC):

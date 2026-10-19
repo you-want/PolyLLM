@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from polyllm_core.transport import request_text, request_events
+from polyllm_core.wire import parse_openai_stream_event, serialize_openai_message, parse_openai_response
+
 import asyncio
 import json
-from typing import Any, AsyncIterator, Callable, cast
+from typing import Any, AsyncGenerator, AsyncIterator, Callable, cast
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -10,6 +13,7 @@ from polyllm_core.config import resolve_provider_runtime
 from polyllm_core.errors import (
     PolyLLMError,
     provider_http_error,
+    provider_parse_error,
 )
 from polyllm_core.types import (
     ChatContext,
@@ -37,6 +41,7 @@ class OpenAICompatiblePlugin(LLMPlugin):
     def __init__(self, transport: Transport | None = None, provider: str = "openai-compatible"):
         self.provider = provider
         self._transport = transport or urllib_transport
+        self._custom_transport = transport
 
     async def chat(
         self,
@@ -46,32 +51,10 @@ class OpenAICompatiblePlugin(LLMPlugin):
     ) -> UnifiedResponse:
         status, body = await self._request("POST", "/chat/completions", self._build_body(request), config, context)
         data = self._parse_json(status, body)
-        choice = data["choices"][0]
-        message = choice["message"]
-        return UnifiedResponse(
-            id=data["id"],
-            model=data["model"],
-            choices=[
-                UnifiedChoice(
-                    index=choice["index"],
-                    message=UnifiedMessage(
-                        role="assistant",
-                        content=message.get("content") or "",
-                        tool_calls=tuple(
-                            UnifiedToolCall(
-                                id=call["id"],
-                                type="function",
-                                function=dict(call["function"]),
-                            )
-                            for call in message.get("tool_calls", [])
-                        ),
-                    ),
-                    finish_reason=choice.get("finish_reason", "other"),
-                )
-            ],
-            usage=self._parse_usage(data.get("usage", {})),
-            provider_metadata=data.get("metadata"),
-        )
+        try:
+            return parse_openai_response(data, request.model)
+        except (KeyError, TypeError, ValueError, IndexError, AttributeError):
+            raise provider_parse_error(self.provider, status, self.provider) from None
 
     async def chat_stream(
         self,
@@ -81,21 +64,15 @@ class OpenAICompatiblePlugin(LLMPlugin):
     ) -> AsyncIterator[UnifiedStreamChunk]:
         body = self._build_body(request)
         body["stream"] = True
-        status, text = await self._request("POST", "/chat/completions", body, config, context)
-        if status < 200 or status >= 300:
-            raise provider_http_error(
-                "openai-compatible",
-                status,
-                text,
-                "OpenAI-compatible API 错误",
-            )
-        for event in parse_sse(text):
-            yield UnifiedStreamChunk(
-                id=event["id"],
-                model=event["model"],
-                delta=dict(event.get("delta", {})),
-                finish_reason=event.get("finish_reason"),
-            )
+        body["stream_options"] = {"include_usage": True}
+        events = self._stream_request("POST", "/chat/completions", body, config, context)
+        try:
+            async for event in events:
+                chunk = parse_openai_stream_event(event, request.model)
+                if chunk is not None:
+                    yield chunk
+        finally:
+            await events.aclose()
 
     async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
         status, body = await self._request("GET", "/models", None, config, None)
@@ -117,9 +94,9 @@ class OpenAICompatiblePlugin(LLMPlugin):
             provider=self.provider,
             capabilities=ModelCapabilities(
                 streaming=True,
-                vision=True,
-                function_calling=True,
-                json_mode=True,
+                vision=False,
+                function_calling=False,
+                json_mode=False,
                 system_prompt=True,
             ),
             context_window=128000,
@@ -129,20 +106,7 @@ class OpenAICompatiblePlugin(LLMPlugin):
     def _build_body(self, request: UnifiedRequest) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": request.model,
-            "messages": [
-                {
-                    "role": message.role,
-                    "content": message.content,
-                    **({"name": message.name} if message.name else {}),
-                    **({"tool_call_id": message.tool_call_id} if message.tool_call_id else {}),
-                    **(
-                        {"tool_calls": [dict(call.__dict__) for call in message.tool_calls]}
-                        if message.tool_calls
-                        else {}
-                    ),
-                }
-                for message in request.messages
-            ],
+            "messages": [serialize_openai_message(message) for message in request.messages],
         }
         if request.temperature is not None:
             body["temperature"] = request.temperature
@@ -176,9 +140,34 @@ class OpenAICompatiblePlugin(LLMPlugin):
         if payload is not None:
             headers["Content-Type"] = "application/json"
         timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
-        return await asyncio.to_thread(
-            self._transport, method, f"{base_url}{path}", headers, payload, timeout_ms
-        )
+        return await request_text(self.provider, method, f"{base_url}{path}", headers, payload, timeout_ms, self._custom_transport)
+
+    async def _stream_request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None,
+        config: ProviderConfig,
+        context: ChatContext | None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        runtime = resolve_provider_runtime(self.provider, config)
+        if not runtime.base_url:
+            raise PolyLLMError(
+                "INVALID_CONFIG",
+                "OpenAI-compatible 供应商必须配置 providers[].base_url",
+                {"provider": self.provider},
+            )
+        base_url = runtime.base_url.rstrip("/")
+        headers = {"Authorization": f"Bearer {runtime.api_key}", **runtime.headers}
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
+        events = request_events(self.provider, method, f"{base_url}{path}", headers, payload, timeout_ms, self._custom_transport)
+        try:
+            async for event in events:
+                yield event
+        finally:
+            await events.aclose()
 
     @staticmethod
     def _parse_usage(data: dict[str, Any]) -> UnifiedUsage:
@@ -190,10 +179,14 @@ class OpenAICompatiblePlugin(LLMPlugin):
 
     @staticmethod
     def _parse_json(status: int, body: str) -> dict[str, Any]:
+        if not 200 <= status < 300:
+            raise provider_http_error("openai-compatible", status, body, "openai-compatible")
         try:
             data = cast(dict[str, Any], json.loads(body))
-        except json.JSONDecodeError as error:
-            raise PolyLLMError("PROVIDER_ERROR", f"服务返回无效 JSON: {body[:200]}", {"status": status}) from error
+            if not isinstance(data, dict):
+                raise ValueError("Expected JSON object")
+        except (ValueError, TypeError):
+            raise provider_parse_error("openai-compatible", status if status else None, "OpenAI-compatible 响应解析") from None
         if status < 200 or status >= 300:
             raise provider_http_error(
                 "openai-compatible",

@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from polyllm_core.transport import request_text, request_events
+from polyllm_core.wire import parse_openai_stream_event, serialize_openai_message, parse_openai_response
+
 import asyncio
 import json
-from typing import Any, AsyncIterator, Callable, cast
+from typing import Any, AsyncGenerator, AsyncIterator, Callable, cast
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from polyllm_core.errors import (
     PolyLLMError,
     provider_http_error,
+    provider_parse_error,
 )
 from polyllm_core.types import (
     ChatContext,
@@ -40,6 +44,7 @@ class OllamaPlugin(LLMPlugin):
 
     def __init__(self, transport: Transport | None = None):
         self._transport = transport or urllib_transport
+        self._custom_transport = transport
 
     async def chat(
         self,
@@ -52,32 +57,10 @@ class OllamaPlugin(LLMPlugin):
             "POST", f"{base_url}/v1/chat/completions", self._build_body(request), config, context
         )
         data = self._parse_json(status, body)
-        choice = data["choices"][0]
-        message = choice["message"]
-        return UnifiedResponse(
-            id=data.get("id", ""),
-            model=data.get("model", context.model.id),
-            choices=[
-                UnifiedChoice(
-                    index=choice.get("index", 0),
-                    message=UnifiedMessage(
-                        role="assistant",
-                        content=message.get("content") or "",
-                        tool_calls=tuple(
-                            UnifiedToolCall(
-                                id=call.get("id", ""),
-                                type="function",
-                                function=dict(call.get("function", {})),
-                            )
-                            for call in message.get("tool_calls", [])
-                        ),
-                    ),
-                    finish_reason=choice.get("finish_reason") or "stop",
-                )
-            ],
-            usage=self._parse_usage(data.get("usage", {})),
-            provider_metadata=data,
-        )
+        try:
+            return parse_openai_response(data, request.model)
+        except (KeyError, TypeError, ValueError, IndexError, AttributeError):
+            raise provider_parse_error(self.provider, status, self.provider) from None
 
     async def chat_stream(
         self,
@@ -88,20 +71,15 @@ class OllamaPlugin(LLMPlugin):
         base_url = self._resolve_base_url(config)
         body = self._build_body(request)
         body["stream"] = True
-        status, text = await self._request(
-            "POST", f"{base_url}/v1/chat/completions", body, config, context
-        )
-        if status < 200 or status >= 300:
-            raise provider_http_error("ollama", status, text, "Ollama API 错误")
-        for event in parse_sse(text):
-            choice = (event.get("choices") or [{}])[0]
-            delta = choice.get("delta") or {}
-            yield UnifiedStreamChunk(
-                id=event.get("id", ""),
-                model=event.get("model", context.model.id),
-                delta=delta,
-                finish_reason=choice.get("finish_reason"),
-            )
+        body["stream_options"] = {"include_usage": True}
+        events = self._stream_request("POST", f"{base_url}/v1/chat/completions", body, config, context)
+        try:
+            async for event in events:
+                chunk = parse_openai_stream_event(event, request.model)
+                if chunk is not None:
+                    yield chunk
+        finally:
+            await events.aclose()
 
     async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
         base_url = self._resolve_base_url(config)
@@ -135,20 +113,7 @@ class OllamaPlugin(LLMPlugin):
     def _build_body(self, request: UnifiedRequest) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": request.model,
-            "messages": [
-                {
-                    "role": message.role,
-                    "content": message.content,
-                    **({"name": message.name} if message.name else {}),
-                    **({"tool_call_id": message.tool_call_id} if message.tool_call_id else {}),
-                    **(
-                        {"tool_calls": [dict(call.__dict__) for call in message.tool_calls]}
-                        if message.tool_calls
-                        else {}
-                    ),
-                }
-                for message in request.messages
-            ],
+            "messages": [serialize_openai_message(message) for message in request.messages],
         }
         if request.temperature is not None:
             body["temperature"] = request.temperature
@@ -175,7 +140,26 @@ class OllamaPlugin(LLMPlugin):
         if payload is not None:
             headers["Content-Type"] = "application/json"
         timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
-        return await asyncio.to_thread(self._transport, method, url, headers, payload, timeout_ms)
+        return await request_text(self.provider, method, url, headers, payload, timeout_ms, self._custom_transport, known_secrets=[config.api_key or ""])
+
+    async def _stream_request(
+        self,
+        method: str,
+        url: str,
+        payload: dict[str, Any] | None,
+        config: ProviderConfig,
+        context: ChatContext | None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        headers = dict(config.headers or {})
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        timeout_ms = context.timeout_ms if context is not None and context.timeout_ms is not None else 120000
+        events = request_events(self.provider, method, url, headers, payload, timeout_ms, self._custom_transport, known_secrets=[config.api_key or ""])
+        try:
+            async for event in events:
+                yield event
+        finally:
+            await events.aclose()
 
     @staticmethod
     def _parse_usage(data: dict[str, Any]) -> UnifiedUsage:
@@ -187,10 +171,14 @@ class OllamaPlugin(LLMPlugin):
 
     @staticmethod
     def _parse_json(status: int, body: str) -> dict[str, Any]:
+        if not 200 <= status < 300:
+            raise provider_http_error("ollama", status, body, "ollama")
         try:
             data = cast(dict[str, Any], json.loads(body))
-        except json.JSONDecodeError as error:
-            raise PolyLLMError("PROVIDER_ERROR", f"Ollama 返回无效 JSON: {body[:200]}", {"status": status}) from error
+            if not isinstance(data, dict):
+                raise ValueError("Expected JSON object")
+        except (ValueError, TypeError):
+            raise provider_parse_error("ollama", status if status else None, "Ollama 响应解析") from None
         if status < 200 or status >= 300:
             raise provider_http_error("ollama", status, data, "Ollama API 错误")
         return data

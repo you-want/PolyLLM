@@ -12,11 +12,12 @@ models = (
     ModelSpec(
         id="gpt-4o-mini",
         provider="openai",
-        aliases=("gpt4o-mini",),
+        aliases=("gpt4o-mini", "mini"),
+        snapshot="gpt-4o-mini-2024-07-18",
         capabilities=capabilities,
         params={
             "temperature": NumericParamRange(0, 2, 1),
-            "max_tokens": NumericParamRange(1, 16384, 4096, field="max_tokens"),
+            "max_tokens": NumericParamRange(1, 16384, 4096, field="max_completion_tokens"),
             "top_p": NumericParamRange(0, 1, 1),
         },
         context_window=128000,
@@ -30,7 +31,7 @@ models = (
         capabilities=capabilities,
         params={
             "temperature": NumericParamRange(0, 2, 1),
-            "max_tokens": NumericParamRange(1, 16384, 4096, field="max_tokens"),
+            "max_tokens": NumericParamRange(1, 16384, 4096, field="max_completion_tokens"),
             "top_p": NumericParamRange(0, 1, 1),
         },
         context_window=128000,

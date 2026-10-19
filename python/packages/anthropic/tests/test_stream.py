@@ -26,7 +26,7 @@ class AnthropicStreamTests(unittest.TestCase):
 
         chunks = asyncio.run(run())
         self.assertEqual([chunk.delta.get("content") for chunk in chunks], ["he", "llo", None])
-        self.assertEqual(chunks[-1].finish_reason, "end_turn")
+        self.assertEqual(chunks[-1].finish_reason, "stop")
 
 
 if __name__ == "__main__":

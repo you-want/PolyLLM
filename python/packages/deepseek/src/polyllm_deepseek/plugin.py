@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from polyllm_core.types import ModelCapabilities, ModelSpec, NumericParamRange
 from polyllm_openai_compatible.plugin import OpenAICompatiblePlugin, Transport
 
@@ -46,7 +48,7 @@ class DeepSeekPlugin(OpenAICompatiblePlugin):
         return ModelSpec(
             id=model_id,
             provider=self.provider,
-            capabilities=capabilities,
+            capabilities=replace(capabilities, vision=False, function_calling=False, json_mode=False),
             context_window=65536,
             max_output=8192,
         )

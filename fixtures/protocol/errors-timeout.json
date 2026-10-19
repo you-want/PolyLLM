@@ -9,6 +9,10 @@
         "status": 401,
         "category": "auth",
         "retryable": false
+      },
+      "trigger": {
+        "kind": "http",
+        "status": 401
       }
     },
     {
@@ -18,6 +22,10 @@
         "status": 403,
         "category": "permission",
         "retryable": false
+      },
+      "trigger": {
+        "kind": "http",
+        "status": 403
       }
     },
     {
@@ -27,6 +35,10 @@
         "status": 429,
         "category": "rate_limited",
         "retryable": true
+      },
+      "trigger": {
+        "kind": "http",
+        "status": 429
       }
     },
     {
@@ -36,6 +48,10 @@
         "status": 400,
         "category": "invalid_request",
         "retryable": false
+      },
+      "trigger": {
+        "kind": "http",
+        "status": 400
       }
     },
     {
@@ -45,6 +61,10 @@
         "status": 500,
         "category": "server",
         "retryable": true
+      },
+      "trigger": {
+        "kind": "http",
+        "status": 500
       }
     },
     {
@@ -53,6 +73,9 @@
       "error": {
         "category": "connection",
         "retryable": true
+      },
+      "trigger": {
+        "kind": "connection-failure"
       }
     },
     {
@@ -61,6 +84,9 @@
       "error": {
         "category": "parse",
         "retryable": false
+      },
+      "trigger": {
+        "kind": "invalid-json-parse"
       }
     },
     {
@@ -69,6 +95,9 @@
       "error": {
         "category": "timeout",
         "retryable": false
+      },
+      "trigger": {
+        "kind": "timeout"
       }
     },
     {
@@ -77,6 +106,9 @@
       "error": {
         "category": "cancelled",
         "retryable": false
+      },
+      "trigger": {
+        "kind": "cancelled"
       }
     },
     {
@@ -86,6 +118,10 @@
         "status": 418,
         "category": "unknown",
         "retryable": false
+      },
+      "trigger": {
+        "kind": "http",
+        "status": 418
       }
     }
   ]

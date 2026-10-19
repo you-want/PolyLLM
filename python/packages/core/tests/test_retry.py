@@ -31,9 +31,9 @@ class MaxAttemptsTest(unittest.TestCase):
 
 class ComputeBackoffTest(unittest.TestCase):
     def test_defaults_no_jitter(self):
-        self.assertEqual(compute_backoff_ms(None, None, 1), 500.0)
-        self.assertEqual(compute_backoff_ms(None, None, 2), 1000.0)
-        self.assertEqual(compute_backoff_ms(None, None, 3), 2000.0)
+        self.assertEqual(compute_backoff_ms(None, None, 1, lambda: 0.0), 500.0)
+        self.assertEqual(compute_backoff_ms(None, None, 2, lambda: 0.0), 1000.0)
+        self.assertEqual(compute_backoff_ms(None, None, 3, lambda: 0.0), 2000.0)
 
     def test_cap(self):
         self.assertEqual(compute_backoff_ms(None, None, 10), 8000.0)
@@ -41,8 +41,9 @@ class ComputeBackoffTest(unittest.TestCase):
     def test_retry_after_wins(self):
         self.assertEqual(compute_backoff_ms(None, 3, 5), 3000.0)
 
-    def test_retry_after_capped(self):
-        self.assertEqual(compute_backoff_ms(None, 60, 1), 8000.0)
+    def test_retry_after_is_a_floor_not_capped(self):
+        # Retry-After is honored in full even past maxDelayMs (P1 #12).
+        self.assertEqual(compute_backoff_ms(None, 60, 1), 60000.0)
 
     def test_jitter(self):
         # jitter=0.25, random=1.0 -> +25% of 500 = 625
@@ -141,8 +142,8 @@ class WithRetriesTest(unittest.TestCase):
         with self.assertRaises(PolyLLMError) as ctx:
             asyncio.run(run())
         self.assertEqual(ctx.exception.details["category"], "timeout")
-        # t=0, t=1000, t=2000 run; t=3000 would exceed -> 3 calls
-        self.assertEqual(state["calls"], 3)
+        # No attempt starts at or after the deadline.
+        self.assertEqual(state["calls"], 2)
 
 
 class InterruptibleTransportTest(unittest.TestCase):
@@ -164,7 +165,7 @@ class InterruptibleTransportTest(unittest.TestCase):
         worker_done = threading.Event()
 
         def run_worker() -> None:
-            status, body, headers = interruptible_urlopen(
+            status, body, headers, meta = interruptible_urlopen(
                 "GET", f"http://127.0.0.1:{self.server_port}/", {}, None, 120_000, handle
             )
             worker_done.set()

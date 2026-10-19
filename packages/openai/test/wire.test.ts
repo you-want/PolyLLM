@@ -69,6 +69,28 @@ describe('OpenAI wire protocol', () => {
     expect(chunk.usage?.totalTokens).toBe(3)
   })
 
+  it('preserves parallel tool-call index in stream deltas', () => {
+    const chunk = parseOpenAIStreamEvent(
+      {
+        id: 'chatcmpl-stream',
+        model: 'gpt-4o',
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                { index: 0, id: 'call_a', function: { name: 'a', arguments: '{"x":1}' } },
+                { index: 1, id: 'call_b', function: { name: 'b', arguments: '{"y":2}' } },
+              ],
+            },
+          },
+        ],
+      },
+      'gpt-4o',
+    )
+    const calls = chunk.delta.toolCalls ?? []
+    expect(calls.map((c) => c.index)).toEqual([0, 1])
+  })
+
   it('parses model catalog responses', () => {
     const models = parseOpenAIModelsResponse({
       data: [

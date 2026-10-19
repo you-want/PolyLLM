@@ -155,6 +155,8 @@ export function parseDeepSeekResponse(data: JsonRecord, fallbackModel: string): 
       function: { name: call.function?.name ?? '', arguments: call.function?.arguments ?? '{}' },
     }))
   }
+  // P1 #15: flag omitted usage so callers can distinguish real-zero from not-provided.
+  const hasUsage = response.usage !== undefined && response.usage !== null
   return {
     id: response.id ?? '',
     model: response.model ?? fallbackModel,
@@ -170,7 +172,7 @@ export function parseDeepSeekResponse(data: JsonRecord, fallbackModel: string): 
       completionTokens: response.usage?.completion_tokens ?? 0,
       totalTokens: response.usage?.total_tokens ?? 0,
     },
-    providerMetadata: data,
+    providerMetadata: hasUsage ? data : { ...data, usageUnavailable: true },
   }
 }
 
@@ -183,7 +185,8 @@ export function parseDeepSeekStreamEvent(event: DeepSeekStreamEvent, fallbackMod
     delta: {
       role: delta?.role === 'assistant' ? 'assistant' : undefined,
       content: delta?.content ?? undefined,
-      toolCalls: delta?.tool_calls?.map((call): StreamToolCall => ({
+      toolCalls: delta?.tool_calls?.map((call, index): StreamToolCall => ({
+        index: call.index ?? index,
         id: call.id,
         type: call.type === 'function' ? 'function' : undefined,
         function: { name: call.function?.name, arguments: call.function?.arguments },

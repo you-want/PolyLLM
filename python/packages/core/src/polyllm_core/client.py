@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import replace
-from typing import Any, AsyncIterator, Mapping
+from .retry import with_retries
+from typing import Any, AsyncIterator, Mapping, cast
 
 from .config import resolve_provider_runtime
 from .errors import PolyLLMError, UnknownModelError
@@ -47,19 +50,40 @@ class PolyLLM(LLMClient):
             for spec in plugin.models:
                 self._registry.register(spec)
 
+    def _extract_runtime_options(self, kwargs: dict[str, Any]) -> tuple[int | None, dict[str, Any] | None, dict[str, Any]]:
+        """Pull runtime (non-business) options out of the call kwargs.
+
+        ``timeout_ms`` and ``retries`` are request-lifecycle options; they must
+        not leak into the UnifiedRequest business payload. Returns
+        ``(timeout_ms, retries, remaining_business_kwargs)``.
+        """
+        timeout_ms = kwargs.pop("timeout_ms", None)
+        retries = kwargs.pop("retries", None)
+        if timeout_ms is not None:
+            if not isinstance(timeout_ms, int) or isinstance(timeout_ms, bool) or timeout_ms <= 0:
+                raise PolyLLMError(
+                    "INVALID_CONFIG",
+                    "timeout_ms 必须是正整数（毫秒）",
+                    {"value": timeout_ms},
+                )
+        if retries is not None and not isinstance(retries, dict):
+            raise PolyLLMError("INVALID_CONFIG", "retries 必须是 RetryPolicy dict", {"value": retries})
+        return timeout_ms, retries, kwargs
+
     async def chat(
         self,
         model: str,
         request: Mapping[str, Any] | None = None,
         **kwargs: Any,
     ) -> UnifiedResponse:
-        request = _merge_request(request, kwargs)
+        timeout_ms, retries, business = self._extract_runtime_options(kwargs)
+        request = _merge_request(request, business)
         plugin, spec, prepared = self._prepare(model, request)
-        return await plugin.chat(
-            prepared,
-            self._config.providers[plugin.provider],
-            ChatContext(model=spec),
-        )
+        context = ChatContext(model=spec, timeout_ms=timeout_ms, retries=retries)
+        async def attempt(_attempt: int) -> UnifiedResponse:
+            return await plugin.chat(prepared, self._config.providers[plugin.provider], context)
+        outcome = await with_retries(attempt, policy=retries, deadline_ms=timeout_ms)
+        return cast(UnifiedResponse, outcome["result"])
 
     async def chat_stream(
         self,
@@ -67,24 +91,51 @@ class PolyLLM(LLMClient):
         request: Mapping[str, Any] | None = None,
         **kwargs: Any,
     ) -> AsyncIterator[UnifiedStreamChunk]:
-        payload = _merge_request(request, kwargs)
+        timeout_ms, retries, business = self._extract_runtime_options(kwargs)
+        payload = _merge_request(request, business)
         payload["stream"] = True
         plugin, spec, prepared = self._prepare(model, payload)
-        try:
-            stream = plugin.chat_stream(
-                prepared,
-                self._config.providers[plugin.provider],
-                ChatContext(model=spec),
-            )
-        except NotImplementedError as error:
-            raise PolyLLMError(
-                "UNSUPPORTED_PARAMETER",
-                f"插件 {plugin.provider} 不支持流式输出",
-                {"provider": plugin.provider},
-            ) from error
+        context = ChatContext(model=spec, timeout_ms=timeout_ms, retries=retries)
+        stream: AsyncIterator[UnifiedStreamChunk] | None = None
+        started = time.monotonic()
 
-        async for chunk in stream:
-            yield chunk
+        async def first(_attempt: int) -> UnifiedStreamChunk | None:
+            nonlocal stream
+            try:
+                stream = plugin.chat_stream(prepared, self._config.providers[plugin.provider], context)
+            except NotImplementedError:
+                raise PolyLLMError("UNSUPPORTED_PARAMETER", f"插件 {plugin.provider} 不支持流式输出", {"provider": plugin.provider}) from None
+            try:
+                return await stream.__anext__()
+            except StopAsyncIteration:
+                return None
+            except NotImplementedError:
+                await close_stream(stream)
+                raise PolyLLMError("UNSUPPORTED_PARAMETER", f"插件 {plugin.provider} 不支持流式输出", {"provider": plugin.provider}) from None
+            except BaseException:
+                await close_stream(stream)
+                raise
+
+        try:
+            outcome = await with_retries(first, policy=retries, deadline_ms=timeout_ms)
+            if outcome["result"] is None:
+                return
+            yield outcome["result"]
+            assert stream is not None
+            while True:
+                remaining = None if timeout_ms is None else timeout_ms / 1000 - (time.monotonic() - started)
+                try:
+                    if remaining is not None and remaining <= 0:
+                        raise asyncio.TimeoutError()
+                    chunk = await asyncio.wait_for(stream.__anext__(), remaining)
+                except StopAsyncIteration:
+                    return
+                except asyncio.TimeoutError:
+                    raise PolyLLMError("PROVIDER_ERROR", "请求预算耗尽", {"category": "timeout", "retryable": False}) from None
+                yield chunk
+        finally:
+            if stream is not None:
+                await close_stream(stream)
 
     def list_models(self) -> list[ModelSpec]:
         return self._registry.list()
@@ -271,3 +322,9 @@ def resolve_runtime_configs(config: ClientConfig) -> dict[str, ProviderConfig]:
             extra=provider_config.extra,
         )
     return resolved
+
+
+async def close_stream(stream: AsyncIterator[UnifiedStreamChunk]) -> None:
+    close = getattr(stream, "aclose", None)
+    if close is not None:
+        await close()

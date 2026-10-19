@@ -118,15 +118,17 @@ export function buildGeminiRequestBody(request: UnifiedRequest, context: ChatCon
     .flatMap((parts) => parts)
 
   const contents: GeminiTurn[] = []
+  const toolNames = new Map<string, string>()
   for (const message of request.messages) {
     if (message.role === 'system') continue
+    for (const call of message.toolCalls ?? []) toolNames.set(call.id, call.function.name)
     if (message.role === 'tool') {
       contents.push({
         role: 'user',
         parts: [{
           functionResponse: {
-            name: message.name ?? '',
-            response: JSON.parse(textContent(message.content) || '{}') as JsonRecord,
+            name: message.name ?? toolNames.get(message.toolCallId ?? '') ?? '',
+            response: toolResult(textContent(message.content)),
           },
         }],
       })
@@ -189,6 +191,8 @@ export function parseGeminiResponse(data: JsonRecord, fallbackModel: string): Un
   )
   const promptTokens = response.usageMetadata?.promptTokenCount ?? 0
   const completionTokens = response.usageMetadata?.candidatesTokenCount ?? 0
+  // P1 #15: flag omitted usageMetadata so callers can distinguish real-zero from not-provided.
+  const hasUsage = response.usageMetadata !== undefined && response.usageMetadata !== null
   return {
     id: '',
     model: fallbackModel,
@@ -204,7 +208,7 @@ export function parseGeminiResponse(data: JsonRecord, fallbackModel: string): Un
       completionTokens,
       totalTokens: response.usageMetadata?.totalTokenCount ?? promptTokens + completionTokens,
     },
-    providerMetadata: data,
+    providerMetadata: hasUsage ? data : { ...data, usageUnavailable: true },
   }
 }
 
@@ -265,4 +269,12 @@ export function parseGeminiModelsResponse(data: JsonRecord): ProviderModelInfo[]
   return (response.models ?? []).flatMap((model) =>
     model.name ? [{ id: normalizeGeminiModelId(model.name), displayName: model.displayName }] : [],
   )
+}
+
+function toolResult(text: string): JsonRecord {
+  try {
+    const value: unknown = JSON.parse(text)
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value as JsonRecord
+    return { result: value }
+  } catch { return { result: text } }
 }

@@ -19,6 +19,7 @@ from .errors import (
     is_retryable_category,
     mask_sensitive,
     provider_http_error,
+    provider_parse_error,
     provider_transport_error,
 )
 from .retry import compute_backoff_ms, max_attempts, with_retries
@@ -34,6 +35,7 @@ __all__ = [
     "ParamValidationResult",
     "PolyLLM",
     "PolyLLMError",
+    "StreamDelta",
     "UnknownModelError",
     "build_provider_error_details",
     "classify_http_status",
@@ -52,6 +54,7 @@ __all__ = [
     "normalize_tool_call",
     "normalize_unified_request",
     "provider_http_error",
+    "provider_parse_error",
     "provider_transport_error",
     "resolve_provider_runtime",
     "validate_and_map_params",

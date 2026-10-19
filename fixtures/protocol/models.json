@@ -6,7 +6,7 @@
       "id": "aliased-model-resolves-to-canonical",
       "valid": true,
       "request": {
-        "model": "openai:gpt-4o",
+        "model": "openai:gpt4o-mini",
         "messages": [
           {
             "role": "user",

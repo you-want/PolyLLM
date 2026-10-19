@@ -6,40 +6,67 @@
       "id": "sse-lf-split-event",
       "valid": true,
       "wire": "text/event-stream",
-      "raw": "data: {\"delta_text\":\"He\"}\n\ndata: {\"delta_text\":\"llo\"}\n\ndata: {\"done\":true}\n\n",
+      "raw": "data: {\"id\": \"stream-fixture\", \"model\": \"gpt-4o-mini\", \"choices\": [{\"delta\": {\"content\": \"He\"}}]}\n\ndata: {\"id\": \"stream-fixture\", \"model\": \"gpt-4o-mini\", \"choices\": [{\"delta\": {\"content\": \"llo\"}}]}\n\ndata: {\"id\": \"stream-fixture\", \"model\": \"gpt-4o-mini\", \"choices\": [{\"delta\": {}, \"finish_reason\": \"stop\"}]}\n\ndata: [DONE]\n\n",
       "expectedChunks": [
-        { "delta": { "content": "He" } },
-        { "delta": { "content": "Llo" } },
-        { "delta": {}, "finishReason": "stop" }
+        {
+          "delta": {
+            "content": "He"
+          }
+        },
+        {
+          "delta": {
+            "content": "llo"
+          }
+        },
+        {
+          "delta": {},
+          "finishReason": "stop"
+        }
       ]
     },
     {
       "id": "sse-crlf-and-multi-line-data",
       "valid": true,
       "wire": "text/event-stream",
-      "raw": "data: {\"delta_text\":\"a\"}\r\ndata: {\"delta_text\":\"b\"}\r\n\r\n",
+      "raw": "data: {\"id\":\"stream-fixture\",\"model\":\"gpt-4o-mini\",\r\ndata: \"choices\":[{\"delta\":{\"content\":\"ab\"}}]}\r\n\r\n",
       "expectedChunks": [
-        { "delta": { "content": "a" } },
-        { "delta": { "content": "b" } }
+        {
+          "delta": {
+            "content": "ab"
+          }
+        }
       ]
     },
     {
       "id": "ndjson-lines",
       "valid": true,
       "wire": "application/x-ndjson",
-      "raw": "{\"delta_text\":\"x\"}\n{\"delta_text\":\"y\",\"finish\":\"stop\"}\n",
+      "raw": "{\"id\": \"stream-fixture\", \"model\": \"gpt-4o-mini\", \"choices\": [{\"delta\": {\"content\": \"x\"}}]}\n{\"id\": \"stream-fixture\", \"model\": \"gpt-4o-mini\", \"choices\": [{\"delta\": {\"content\": \"y\"}, \"finish_reason\": \"stop\"}]}\n",
       "expectedChunks": [
-        { "delta": { "content": "x" } },
-        { "delta": { "content": "y" }, "finishReason": "stop" }
+        {
+          "delta": {
+            "content": "x"
+          }
+        },
+        {
+          "delta": {
+            "content": "y"
+          },
+          "finishReason": "stop"
+        }
       ]
     },
     {
       "id": "utf8-boundary-no-split",
       "valid": true,
       "wire": "text/event-stream",
-      "raw": "data: {\"delta_text\":\"☃\"}\n\n",
+      "raw": "data: {\"id\": \"stream-fixture\", \"model\": \"gpt-4o-mini\", \"choices\": [{\"delta\": {\"content\": \"☃\"}}]}\n\n",
       "expectedChunks": [
-        { "delta": { "content": "❄" } }
+        {
+          "delta": {
+            "content": "☃"
+          }
+        }
       ]
     },
     {
@@ -48,7 +75,9 @@
       "wire": "text/event-stream",
       "raw": "data: {\"delta_text\":\"abc",
       "expectedChunks": [],
-      "error": { "category": "parse" }
+      "error": {
+        "category": "parse"
+      }
     }
   ]
 }

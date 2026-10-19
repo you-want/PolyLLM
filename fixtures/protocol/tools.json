@@ -8,7 +8,10 @@
       "request": {
         "model": "openai:gpt-4o-mini",
         "messages": [
-          { "role": "user", "content": "echo hello" }
+          {
+            "role": "user",
+            "content": "echo hello"
+          }
         ],
         "tools": [
           {
@@ -18,8 +21,14 @@
               "description": "Echoes input back",
               "parameters": {
                 "type": "object",
-                "properties": { "text": { "type": "string" } },
-                "required": ["text"]
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "text"
+                ]
               }
             }
           }
@@ -46,19 +55,55 @@
                 {
                   "id": "call_a",
                   "type": "function",
-                  "function": { "name": "echo", "arguments": "{\"text\":\"hello\"}" }
+                  "function": {
+                    "name": "echo",
+                    "arguments": "{\"text\":\"hello\"}"
+                  }
                 }
               ]
             },
             "finishReason": "tool_calls"
           }
         ],
-        "usage": { "promptTokens": 6, "completionTokens": 9, "totalTokens": 15 }
+        "usage": {
+          "promptTokens": 6,
+          "completionTokens": 9,
+          "totalTokens": 15
+        }
       },
       "expectations": {
         "finishReason": "tool_calls",
         "toolCallCount": 1,
         "argumentsParseOk": true
+      },
+      "source": {
+        "id": "resp_tools_1",
+        "model": "gpt-4o-mini",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "echo",
+                    "arguments": "{\"text\":\"hello\"}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 6,
+          "completion_tokens": 9,
+          "total_tokens": 15
+        }
       }
     },
     {
@@ -67,15 +112,29 @@
       "request": {
         "model": "openai:gpt-4o-mini",
         "messages": [
-          { "role": "user", "content": "echo hello" },
+          {
+            "role": "user",
+            "content": "echo hello"
+          },
           {
             "role": "assistant",
             "content": "",
             "toolCalls": [
-              { "id": "call_a", "type": "function", "function": { "name": "echo", "arguments": "{\"text\":\"hello\"}" } }
+              {
+                "id": "call_a",
+                "type": "function",
+                "function": {
+                  "name": "echo",
+                  "arguments": "{\"text\":\"hello\"}"
+                }
+              }
             ]
           },
-          { "role": "tool", "toolCallId": "call_a", "content": "hello" }
+          {
+            "role": "tool",
+            "toolCallId": "call_a",
+            "content": "hello"
+          }
         ],
         "tools": [
           {
@@ -85,8 +144,14 @@
               "description": "Echoes input back",
               "parameters": {
                 "type": "object",
-                "properties": { "text": { "type": "string" } },
-                "required": ["text"]
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "text"
+                ]
               }
             }
           }
@@ -106,46 +171,420 @@
           "delta": {
             "role": "assistant",
             "toolCalls": [
-              { "id": "call_b", "type": "function", "function": { "name": "echo", "arguments": "{\"te" } }
+              {
+                "id": "call_b",
+                "type": "function",
+                "function": {
+                  "name": "echo",
+                  "arguments": "{\"te"
+                },
+                "index": 0
+              }
             ]
           }
         },
         {
           "id": "resp_stream",
           "model": "gpt-4o-mini",
-          "delta": { "toolCalls": [{ "id": "call_b", "type": "function", "function": { "arguments": "xt\":\"he" } }] }
+          "delta": {
+            "toolCalls": [
+              {
+                "id": "call_b",
+                "type": "function",
+                "function": {
+                  "arguments": "xt\":\"he"
+                },
+                "index": 0
+              }
+            ]
+          }
         },
         {
           "id": "resp_stream",
           "model": "gpt-4o-mini",
-          "delta": { "toolCalls": [{ "id": "call_b", "type": "function", "function": { "arguments": "llo\"}" } }] }
+          "delta": {
+            "toolCalls": [
+              {
+                "id": "call_b",
+                "type": "function",
+                "function": {
+                  "arguments": "llo\"}"
+                },
+                "index": 0
+              }
+            ]
+          }
         },
         {
           "id": "resp_stream",
           "model": "gpt-4o-mini",
           "delta": {},
           "finishReason": "tool_calls",
-          "usage": { "promptTokens": 5, "completionTokens": 11, "totalTokens": 16 }
+          "usage": {
+            "promptTokens": 5,
+            "completionTokens": 11,
+            "totalTokens": 16
+          }
         }
       ],
       "expectations": {
-        "reassembledArguments": { "text": "hello" },
+        "reassembledArguments": {
+          "text": "hello"
+        },
         "finishReason": "tool_calls",
         "emptyDeltaTolerated": true
-      }
+      },
+      "sourceEvents": [
+        {
+          "id": "resp_stream",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "call_b",
+                    "type": "function",
+                    "function": {
+                      "name": "echo",
+                      "arguments": "{\"te"
+                    },
+                    "index": 0
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "resp_stream",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {
+                "tool_calls": [
+                  {
+                    "id": "call_b",
+                    "type": "function",
+                    "function": {
+                      "arguments": "xt\":\"he"
+                    },
+                    "index": 0
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "resp_stream",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {
+                "tool_calls": [
+                  {
+                    "id": "call_b",
+                    "type": "function",
+                    "function": {
+                      "arguments": "llo\"}"
+                    },
+                    "index": 0
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "resp_stream",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {},
+              "finish_reason": "tool_calls"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 5,
+            "completion_tokens": 11,
+            "total_tokens": 16
+          }
+        }
+      ]
     },
     {
       "id": "tool-parameters-missing-invalid",
       "valid": false,
       "request": {
         "model": "openai:gpt-4o-mini",
-        "messages": [{ "role": "user", "content": "hi" }],
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
         "tools": [
           {
             "type": "function",
-            "function": { "name": "echo", "description": "echo" }
+            "function": {
+              "name": "echo",
+              "description": "echo"
+            }
           }
         ]
+      }
+    },
+    {
+      "id": "parallel-tool-calls-carry-index",
+      "valid": true,
+      "chunks": [
+        {
+          "id": "resp_parallel",
+          "model": "gpt-4o-mini",
+          "delta": {
+            "toolCalls": [
+              {
+                "id": "call_a",
+                "type": "function",
+                "index": 0,
+                "function": {
+                  "name": "echo",
+                  "arguments": "{\"text\":\"hi\"}"
+                }
+              },
+              {
+                "id": "call_b",
+                "type": "function",
+                "index": 1,
+                "function": {
+                  "name": "greet",
+                  "arguments": "{\"name\":\"you\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "resp_parallel",
+          "model": "gpt-4o-mini",
+          "delta": {},
+          "finishReason": "tool_calls",
+          "usage": {
+            "promptTokens": 5,
+            "completionTokens": 12,
+            "totalTokens": 17
+          }
+        }
+      ],
+      "expectations": {
+        "toolCallCount": 2,
+        "toolIndexes": [
+          0,
+          1
+        ],
+        "finishReason": "tool_calls"
+      },
+      "sourceEvents": [
+        {
+          "id": "resp_parallel",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {
+                "tool_calls": [
+                  {
+                    "id": "call_a",
+                    "type": "function",
+                    "index": 0,
+                    "function": {
+                      "name": "echo",
+                      "arguments": "{\"text\":\"hi\"}"
+                    }
+                  },
+                  {
+                    "id": "call_b",
+                    "type": "function",
+                    "index": 1,
+                    "function": {
+                      "name": "greet",
+                      "arguments": "{\"name\":\"you\"}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "resp_parallel",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {},
+              "finish_reason": "tool_calls"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 5,
+            "completion_tokens": 12,
+            "total_tokens": 17
+          }
+        }
+      ]
+    },
+    {
+      "id": "interleaved-tools-without-repeated-id",
+      "valid": true,
+      "sourceEvents": [
+        {
+          "id": "parallel",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "id": "a",
+                    "type": "function",
+                    "function": {
+                      "name": "echo",
+                      "arguments": "{\"text\":\""
+                    }
+                  },
+                  {
+                    "index": 1,
+                    "id": "b",
+                    "type": "function",
+                    "function": {
+                      "name": "echo",
+                      "arguments": "{\"text\":\""
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "parallel",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {
+                "tool_calls": [
+                  {
+                    "index": 1,
+                    "function": {
+                      "arguments": "second\"}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "parallel",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "first\"}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "parallel",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "delta": {},
+              "finish_reason": "tool_calls"
+            }
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "parallel",
+          "model": "gpt-4o-mini",
+          "delta": {
+            "toolCalls": [
+              {
+                "index": 0,
+                "id": "a",
+                "type": "function",
+                "function": {
+                  "name": "echo",
+                  "arguments": "{\"text\":\""
+                }
+              },
+              {
+                "index": 1,
+                "id": "b",
+                "type": "function",
+                "function": {
+                  "name": "echo",
+                  "arguments": "{\"text\":\""
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "parallel",
+          "model": "gpt-4o-mini",
+          "delta": {
+            "toolCalls": [
+              {
+                "index": 1,
+                "function": {
+                  "arguments": "second\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "parallel",
+          "model": "gpt-4o-mini",
+          "delta": {
+            "toolCalls": [
+              {
+                "index": 0,
+                "function": {
+                  "arguments": "first\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "parallel",
+          "model": "gpt-4o-mini",
+          "delta": {},
+          "finishReason": "tool_calls"
+        }
+      ],
+      "expectations": {
+        "toolIndexes": [
+          0,
+          1,
+          1,
+          0
+        ],
+        "finishReason": "tool_calls"
       }
     }
   ]

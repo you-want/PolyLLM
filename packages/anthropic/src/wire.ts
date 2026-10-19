@@ -83,6 +83,8 @@ export interface AnthropicStreamEvent {
 export interface AnthropicStreamState {
   id: string
   model: string
+  /** Maps the Anthropic content-block index (`event.index`) to the logical
+   *  tool-call index in the unified `delta.toolCalls` array. */
   toolIndexes: Map<number, number>
   nextToolIndex: number
 }
@@ -209,6 +211,8 @@ export function parseAnthropicResponse(data: JsonRecord, fallbackModel: string):
   )
   const promptTokens = response.usage?.input_tokens ?? 0
   const completionTokens = response.usage?.output_tokens ?? 0
+  // P1 #15: flag omitted usage so callers can distinguish real-zero from not-provided.
+  const hasUsage = response.usage !== undefined && response.usage !== null
   return {
     id: response.id ?? '',
     model: response.model ?? fallbackModel,
@@ -224,7 +228,7 @@ export function parseAnthropicResponse(data: JsonRecord, fallbackModel: string):
       completionTokens,
       totalTokens: promptTokens + completionTokens,
     },
-    providerMetadata: data,
+    providerMetadata: hasUsage ? data : { ...data, usageUnavailable: true },
   }
 }
 
@@ -265,6 +269,7 @@ export function parseAnthropicStreamEvent(
             {
               id: event.content_block.id,
               type: 'function',
+              index: toolIndex,
               function: { name: event.content_block.name ?? '', arguments: '' },
             },
           ],
@@ -286,6 +291,7 @@ export function parseAnthropicStreamEvent(
         delta: {
           toolCalls: [
             {
+              index: toolIndex,
               function: { arguments: event.delta.partial_json ?? '' },
             },
           ],

@@ -46,18 +46,26 @@ describe('isRetryableCategory', () => {
 describe('classifyFetchError', () => {
   it('maps TimeoutError DOMException to timeout', () => {
     const err = new DOMException('Timeout', 'TimeoutError')
-    expect(classifyFetchError(err, false)).toBe('timeout')
+    expect(classifyFetchError(err, undefined, undefined)).toBe('timeout')
   })
 
-  it('maps AbortError with hasTimeout=true to timeout, false to cancelled', () => {
+  it('maps AbortError to timeout when only the timeout signal fired', () => {
     const err = new DOMException('Aborted', 'AbortError')
-    expect(classifyFetchError(err, true)).toBe('timeout')
-    expect(classifyFetchError(err, false)).toBe('cancelled')
+    const timeoutController = new AbortController()
+    timeoutController.abort()
+    expect(classifyFetchError(err, undefined, timeoutController.signal)).toBe('timeout')
+  })
+
+  it('maps AbortError to cancelled when the user signal fired', () => {
+    const err = new DOMException('Aborted', 'AbortError')
+    const userController = new AbortController()
+    userController.abort()
+    expect(classifyFetchError(err, userController.signal, undefined)).toBe('cancelled')
   })
 
   it('maps unknown errors to connection', () => {
-    expect(classifyFetchError(new TypeError('fetch failed'), false)).toBe('connection')
-    expect(classifyFetchError(new Error('DNS failure'), false)).toBe('connection')
+    expect(classifyFetchError(new TypeError('fetch failed'), undefined, undefined)).toBe('connection')
+    expect(classifyFetchError(new Error('DNS failure'), undefined, undefined)).toBe('connection')
   })
 })
 
@@ -161,7 +169,7 @@ describe('extractErrorExcerpt', () => {
 describe('providerTransportError', () => {
   it('builds correct details for a timeout', () => {
     const err = new DOMException('Timeout', 'TimeoutError')
-    const error = providerTransportError('openai', err, 'OpenAI API 调用', true, 5000)
+    const error = providerTransportError('openai', err, 'OpenAI API 调用', undefined, 5000, undefined)
     expect(error.code).toBe('PROVIDER_ERROR')
     expect(error.details?.category).toBe('timeout')
     expect(error.details?.retryable).toBe(false)
@@ -170,14 +178,16 @@ describe('providerTransportError', () => {
 
   it('builds correct details for a user cancellation without timeout', () => {
     const err = new DOMException('Aborted', 'AbortError')
-    const error = providerTransportError('anthropic', err, 'Anthropic API 调用', false)
+    const userController = new AbortController()
+    userController.abort()
+    const error = providerTransportError('anthropic', err, 'Anthropic API 调用', userController.signal, undefined, undefined)
     expect(error.details?.category).toBe('cancelled')
     expect(error.details?.retryable).toBe(false)
   })
 
   it('builds correct details for a network connection failure', () => {
     const err = new TypeError('fetch failed')
-    const error = providerTransportError('gemini', err, 'Gemini API 调用', false)
+    const error = providerTransportError('gemini', err, 'Gemini API 调用', undefined, undefined, undefined)
     expect(error.details?.category).toBe('connection')
     expect(error.details?.retryable).toBe(true)
   })

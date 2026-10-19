@@ -69,6 +69,7 @@ jobs:
       - run: pnpm typecheck:python
       - run: pnpm verify:packages
       - run: pnpm verify:integration
+      - run: pnpm verify:protocol
       - run: pnpm verify:packed-install
       - run: pnpm verify:python
       - run: pnpm verify:release:frozen

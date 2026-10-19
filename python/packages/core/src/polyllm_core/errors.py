@@ -95,23 +95,45 @@ def build_provider_error_details(
 
 
 _SK_RE = re.compile(r"\bsk-[A-Za-z0-9_-]{8,}")
+# Authorization header value: match an optional "Bearer " prefix followed by
+# one token (the token may be two words, e.g. "Bearer TOKEN"). Stopping at
+# whitespace would leave the second word intact; matching the full value in
+# one pass masks both words.
+_AUTH_HEADER_RE = re.compile(r"\bAuthorization:\s*(?:Bearer\s+)?[A-Za-z0-9._~+/=-]+", re.IGNORECASE)
 _BEARER_RE = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]+", re.IGNORECASE)
-_AUTH_RE = re.compile(r"(Authorization\s*:\s*)Bearer\s+", re.IGNORECASE)
+_QUERY_CRED_RE = re.compile(
+    r"([?&](?:key|api_key|apikey|token|access_token|secret|client_secret|session)=)[^&\s\"']+",
+    re.IGNORECASE,
+)
 
 
-def mask_sensitive(text: str) -> str:
-    """Mask credential-looking substrings (sk-..., Bearer ...) in a string."""
+def mask_sensitive(text: str, known_secrets: list[str] | None = None) -> str:
+    """Mask credential-looking substrings in a string.
+
+    Covers sk-style keys, Bearer tokens, Authorization headers, and URL
+    query credential values (``?key=`` / ``&token=`` / etc.). Optional
+    ``known_secrets`` (e.g. the live API key for a request) are masked even
+    when they do not match the ``sk-`` / ``Bearer`` shapes.
+    """
     masked = _SK_RE.sub("sk-***", text)
+    # Mask the full Authorization header value (including a two-word Bearer
+    # form) before the standalone Bearer pass, so the token portion is not
+    # re-matched and left intact.
+    masked = _AUTH_HEADER_RE.sub("Authorization: ***", masked)
     masked = _BEARER_RE.sub("Bearer ***", masked)
-    masked = _AUTH_RE.sub(r"\1", masked)
+    masked = _QUERY_CRED_RE.sub(r"\1***", masked)
+    for secret in known_secrets or []:
+        if secret:
+            masked = masked.replace(secret, "***")
     return masked
 
 
-def extract_error_excerpt(body: Any, max_length: int = 200) -> str:
+def extract_error_excerpt(body: Any, max_length: int = 200, known_secrets: list[str] | None = None) -> str:
     """Return a short, masked, human-readable excerpt of a provider error body.
 
     Prefers ``error.message`` / ``message`` / string ``error``; falls back to a
-    JSON-serialized snippet. Always masked and truncated per docs/protocol.md §7.2.
+    JSON-serialized snippet. Always masked (including query credentials) and
+    truncated per docs/protocol.md §7.2.
     """
     if isinstance(body, str):
         raw = body
@@ -129,7 +151,7 @@ def extract_error_excerpt(body: Any, max_length: int = 200) -> str:
             raw = _json.dumps(body, ensure_ascii=False)
     else:
         raw = str(body)
-    masked = mask_sensitive(raw)
+    masked = mask_sensitive(raw, known_secrets)
     if len(masked) > max_length:
         return masked[:max_length] + "…"
     return masked
@@ -163,6 +185,7 @@ def provider_http_error(
     body: dict[str, Any] | str,
     label: str,
     headers: Any = None,
+    known_secrets: list[str] | None = None,
 ) -> PolyLLMError:
     """Build a ``PROVIDER_ERROR`` with the full §7 diagnostic set for an HTTP
     failure response.
@@ -170,13 +193,16 @@ def provider_http_error(
     The raw body is *not* stored in ``details``; only a masked excerpt is
     embedded in the human-readable message (docs/protocol.md §7.2).
     """
+    if isinstance(headers, dict):
+        headers = {key.lower(): value for key, value in headers.items()}
     category = classify_http_status(status)
     parsed_body: dict[str, Any] | None
     if isinstance(body, str):
         import json as _json
 
         try:
-            parsed_body = _json.loads(body)
+            candidate = _json.loads(body)
+            parsed_body = candidate if isinstance(candidate, dict) else None
         except _json.JSONDecodeError:
             parsed_body = None
         raw_body = body
@@ -187,9 +213,12 @@ def provider_http_error(
     request_id = extract_request_id(headers, parsed_body)
     details: dict[str, Any] = build_provider_error_details(provider, status, category, {"label": label})
     if request_id:
-        details["requestId"] = request_id
+        details["requestId"] = mask_sensitive(request_id, known_secrets)
 
-    excerpt = extract_error_excerpt(parsed_body if parsed_body is not None else raw_body)
+    retry_after = parse_retry_after(getattr(headers, "get", lambda _k: None)("retry-after"))
+    if retry_after is not None:
+        details["retryAfterSeconds"] = retry_after
+    excerpt = extract_error_excerpt(parsed_body if parsed_body is not None else raw_body, known_secrets=known_secrets)
     message = f"{label}: {status} {excerpt}" if excerpt else f"{label}: {status}"
     return PolyLLMError("PROVIDER_ERROR", message, details)
 
@@ -217,3 +246,39 @@ def provider_transport_error(
         else:
             message = f"{label}: 连接失败"
     return PolyLLMError("PROVIDER_ERROR", message, details)
+
+
+def provider_parse_error(
+    provider: str,
+    status: int | None,
+    label: str,
+    known_secrets: list[str] | None = None,
+) -> PolyLLMError:
+    """Build a ``PROVIDER_ERROR`` with ``category="parse"`` for an undecodable
+    response body.
+
+    The unfiltered body is intentionally *not* embedded (docs/protocol.md §7.2);
+    only a masked, truncated excerpt of a safe summary is used so parse errors
+    never leak credentials or raw response text.
+    """
+    category: ErrorCategory = "parse"
+    details: dict[str, Any] = build_provider_error_details(provider, status, category, {"label": label})
+    excerpt = extract_error_excerpt(f"invalid JSON in response ({label})", known_secrets=known_secrets)
+    message = f"{label}: 返回无效 JSON {excerpt}"
+    return PolyLLMError("PROVIDER_ERROR", message, details)
+
+
+def parse_retry_after(value: str | None) -> float | None:
+    if not value or not value.strip():
+        return None
+    import math
+    import time
+    from email.utils import parsedate_to_datetime
+    try:
+        seconds = float(value)
+        return seconds if math.isfinite(seconds) and seconds >= 0 else None
+    except ValueError:
+        try:
+            return max(0.0, parsedate_to_datetime(value).timestamp() - time.time())
+        except (ValueError, TypeError, OverflowError):
+            return None

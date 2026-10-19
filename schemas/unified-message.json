@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "polyllm/0.4.0/schemas/unified-message.json",
-  "title": "PolyLLM UnifiedMessage (protocol 0.4.0 draft)",
+  "title": "PolyLLM UnifiedMessage (protocol 0.4.0)",
   "type": "object",
   "required": ["role", "content"],
   "properties": {
