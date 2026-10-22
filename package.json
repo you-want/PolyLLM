@@ -1,9 +1,9 @@
 {
   "name": "polyllm-monorepo",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "description": "PolyLLM \u00b7 \u4e07\u5251\u5f52\u5b97 \u2014 a plugin-based unified LLM access layer.",
+  "description": "PolyLLM · 万剑归宗 — a plugin-based unified LLM access layer.",
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "build": "pnpm --filter @you-want/polyllm-studio-app... build && pnpm -r run build",

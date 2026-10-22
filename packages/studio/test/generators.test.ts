@@ -29,7 +29,7 @@ describe('PolyLLM Studio generators', () => {
     expect(generateLLMModule(selection)).toContain('export const defaultModel = "openai:gpt-4o-mini"')
     const files = generateProjectFiles(selection)
     expect(files.map((file) => file.path)).toEqual(expect.arrayContaining(['package.json', 'src/llm.ts', 'src/main.ts']))
-    expect(files.find((file) => file.path === 'package.json')?.content).toContain('^0.3.0')
+    expect(files.find((file) => file.path === 'package.json')?.content).toContain('^0.4.0')
   })
 
   it('generates a runnable Python project', () => {
@@ -49,7 +49,7 @@ describe('PolyLLM Studio generators', () => {
       'src/python_polyllm_app/llm.py',
       'src/python_polyllm_app/main.py',
     ]))
-    expect(files.find((file) => file.path === 'pyproject.toml')?.content).toContain('polyllm-deepseek>=0.3.0,<0.4.0')
+    expect(files.find((file) => file.path === 'pyproject.toml')?.content).toContain('polyllm-deepseek>=0.4.0,<0.5.0')
   })
 
   it('never writes imported API keys into generated files', () => {
