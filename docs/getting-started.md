@@ -1,139 +1,143 @@
 # PolyLLM Getting Started
 
-PolyLLM 面向两类用户：
+PolyLLM 是微内核、插件化的大模型统一接入层。同一份业务代码在 TypeScript 与 Python 间切换供应商,不需要换 SDK。
 
-- **TypeScript / Node.js 用户**：安装 npm Core 与需要的厂商插件。
-- **Python 用户**：安装 PyPI Core 与需要的厂商插件。
+## 30 秒装完
 
-## 1. 准备密钥
-
-只配置你实际使用的厂商，不需要全部填写：
+**TypeScript / Node**
 
 ```bash
-export OPENAI_API_KEY=sk-...
-export DEEPSEEK_API_KEY=sk-...
-export ANTHROPIC_API_KEY=sk-ant-...
+npm install @you-want/polyllm-core @you-want/polyllm-openai @you-want/polyllm-gemini
 ```
 
-不要把 API key 写进代码、`polyllm.config.json` 或 Git。生产项目使用 `apiKeyEnv` 引用环境变量。
+**Python**
 
-## 2. TypeScript 使用
+```bash
+python -m pip install polyllm-core polyllm-openai polyllm-gemini
+```
 
-如果希望先通过可视化界面选择厂商和模型，发布后可以直接启动 Studio：
+只装你实际用的供应商插件,其余可选。
+
+## 3 分钟跑通(TypeScript)
+
+```ts
+// 1. 配置
+import { createLLM } from '@you-want/polyllm-core'
+import { openAIPlugin } from '@you-want/polyllm-openai'
+import { geminiPlugin } from '@you-want/polyllm-gemini'
+
+export const llm = createLLM({
+  plugins: [openAIPlugin, geminiPlugin],
+  providers: {
+    openai: { apiKeyEnv: 'OPENAI_API_KEY' },
+    gemini: { apiKeyEnv: 'GEMINI_API_KEY' },
+  },
+})
+
+// 2. 第一次 chat
+const resp = await llm.chat('openai:gpt-4o-mini', {
+  messages: [{ role: 'user', content: '用一句话介绍 PolyLLM' }],
+})
+console.log(resp.choices[0].message.content)
+
+// 3. 流式
+for await (const chunk of llm.chatStream('gemini:gemini-2.5-flash', {
+  messages: [{ role: 'user', content: '写一首四行诗' }],
+})) process.stdout.write(chunk.delta.content ?? '')
+```
+
+Python 对应版(行为一致):
+
+```python
+import asyncio
+from polyllm_core import create_llm
+from polyllm_openai import OpenAIPlugin
+from polyllm_gemini import GeminiPlugin
+
+llm = create_llm(
+    plugins=[OpenAIPlugin(), GeminiPlugin()],
+    providers={"openai": {"api_key_env": "OPENAI_API_KEY"},
+               "gemini": {"api_key_env": "GEMINI_API_KEY"}},
+)
+
+async def main():
+    # 第一次 chat
+    r = await llm.chat("openai:gpt-4o-mini",
+                       messages=[{"role": "user", "content": "用一句话介绍 PolyLLM"}])
+    print(r.choices[0].message.content)
+    # 流式
+    async for chunk in llm.chat_stream("gemini:gemini-2.5-flash",
+                                       messages=[{"role": "user", "content": "写一首四行诗"}]):
+        print(chunk.delta.content or "", end="")
+asyncio.run(main())
+```
+
+密钥通过 `apiKeyEnv` 指向环境变量,不写进代码或配置。Ollama 是本地服务,无需密钥。
+
+## 错误处理(0.4.0)
+
+供应商错误统一保留 `code === 'PROVIDER_ERROR'`(0.3.0 老代码的 `catch` 路径继续可用),`details` 新增可机器读取的 `category` / `retryable`:
+
+```ts
+try {
+  await llm.chat('openai:gpt-4o-mini', { messages })
+} catch (e: any) {
+  if (e.code === 'PROVIDER_ERROR' && e.details?.category === 'rate_limited' && e.details?.retryable) {
+    // 限流:可退避后重试
+  }
+}
+```
+
+```python
+try:
+    await llm.chat("openai:gpt-4o-mini", {"messages": messages})
+except PolyLLMError as e:
+    if e.code == "PROVIDER_ERROR" and e.details.get("category") == "rate_limited" and e.details.get("retryable"):
+        ...
+```
+
+## 显式重试(0.4.0,默认关闭)
+
+默认零重试,升级 0.4.0 不会自动增加调用次数/费用。需要重试时显式传策略:
+
+```ts
+await llm.chat('openai:gpt-4o-mini', { messages }, {
+  retries: { maxAttempts: 3, baseDelayMs: 500, jitter: 0.25 },
+})
+```
+
+```python
+await llm.chat("openai:gpt-4o-mini", {"messages": messages},
+               retries={"maxAttempts": 3, "baseDelayMs": 500},
+               timeout_ms=30_000)
+```
+
+`timeout_ms` / `timeoutMs` 是**整个调用总预算**(含重试、退避、流读取),不是单次尝试。
+
+## 不想写代码?用 Studio
 
 ```bash
 npx @you-want/polyllm-cli studio
 ```
 
-Studio 会打开 `http://127.0.0.1:5177`。API Key 只保存在当前浏览器会话中，用于本机获取模型列表和测试连接，不会写入生成物。配置完成后，可以直接下载完整 TypeScript/Python 项目 ZIP，也可以下载 `polyllm.config.json` 并使用 CLI 生成项目。
+打开 `http://127.0.0.1:5177`,可视化选供应商、填密钥、探模型,一键生成 TypeScript / Python 项目 ZIP 或 `polyllm.config.json`。API key 只保存在浏览器会话,不写进生成物。
 
-Studio 支持 TypeScript 的 npm、pnpm、yarn，以及 Python 的 pip 与 `pyproject.toml`。界面可预览完整文件树、导入已有配置继续编辑，并在浏览器本地生成 ZIP。
+## 模型别名
 
-发布后安装：
+| 调用名 | 实际模型 |
+| --- | --- |
+| `openai:gpt4o-mini` | `openai:gpt-4o-mini` |
+| `deepseek:chat` | `deepseek:deepseek-chat` |
+| `deepseek:reasoner` | `deepseek:deepseek-reasoner` |
+| `anthropic:sonnet` | `anthropic:claude-sonnet-4-5` |
+| `anthropic:haiku` | `anthropic:claude-haiku-4-5` |
 
-```bash
-npm install @you-want/polyllm-core @you-want/polyllm-openai @you-want/polyllm-deepseek
-```
+开启 `allowUnlistedModels` 后,未在本地清单的 `provider:model` 会作为远端自定义模型处理。
 
-创建客户端：
-
-```ts
-import { createLLM } from '@you-want/polyllm-core'
-import { openAIPlugin } from '@you-want/polyllm-openai'
-import { deepSeekPlugin } from '@you-want/polyllm-deepseek'
-
-export const llm = createLLM({
-  plugins: [openAIPlugin, deepSeekPlugin],
-  providers: {
-    openai: { apiKeyEnv: 'OPENAI_API_KEY' },
-    deepseek: { apiKeyEnv: 'DEEPSEEK_API_KEY' },
-  },
-  paramPolicy: 'strict',
-})
-```
-
-普通调用：
-
-```ts
-const response = await llm.chat('deepseek:chat', {
-  messages: [{ role: 'user', content: '你好，PolyLLM' }],
-})
-console.log(response.choices[0].message.content)
-```
-
-流式调用：
-
-```ts
-for await (const chunk of llm.chatStream('openai:gpt-4o-mini', {
-  messages: [{ role: 'user', content: '用一句话介绍 PolyLLM' }],
-})) {
-  process.stdout.write(chunk.delta.content ?? '')
-}
-```
-
-错误分类与显式重试（0.4.0）：供应商错误统一保留 `code === 'PROVIDER_ERROR'`，
-但 `details` 新增可机器读取的 `category` / `retryable`（见 `docs/protocol.md` §7）。
-重试**默认关闭**，需要时显式传策略：
-
-```ts
-try {
-  const resp = await llm.chat('deepseek:chat', { messages }, {
-    retries: { maxAttempts: 3, baseDelayMs: 500, jitter: 0.25 },
-  })
-} catch (error) {
-  if (error.details?.category === 'rate_limited' && error.details?.retryable) {
-    // 限流：可退避后再试
-  }
-}
-```
-
-完整能力支持情况见 [compatibility.md](compatibility.md)；从 0.3 升级的行为变化见
-[migrations/v0.3-to-v0.4.md](migrations/v0.3-to-v0.4.md)。
-
-## 3. Python 使用
-
-发布后安装：
-
-```bash
-python3 -m pip install polyllm-core polyllm-openai polyllm-deepseek
-```
-
-创建客户端：
-
-```python
-import asyncio
-from polyllm_core import create_llm
-from polyllm_deepseek import DeepSeekPlugin
-from polyllm_openai import OpenAIPlugin
-
-llm = create_llm(
-    plugins=[OpenAIPlugin(), DeepSeekPlugin()],
-    providers={
-        "openai": {"api_key_env": "OPENAI_API_KEY"},
-        "deepseek": {"api_key_env": "DEEPSEEK_API_KEY"},
-    },
-)
-```
-
-普通调用：
-
-```python
-response = asyncio.run(
-    llm.chat(
-        "deepseek:chat",
-        messages=[{"role": "user", "content": "你好，PolyLLM"}],
-    )
-)
-print(response.choices[0].message.content)
-```
-
-## 4. 接入任意 OpenAI-compatible 服务
-
-适用于 Qwen、Moonshot、OpenRouter、Groq、vLLM、Ollama 等兼容 OpenAI Chat Completions 协议的服务。
+## OpenAI-compatible 服务(Qwen / Moonshot / OpenRouter / Groq / vLLM / LiteLLM)
 
 ```ts
 import { openAICompatiblePlugin } from '@you-want/polyllm-openai-compatible'
-
 export const llm = createLLM({
   plugins: [openAICompatiblePlugin],
   providers: {
@@ -144,43 +148,13 @@ export const llm = createLLM({
   },
   allowUnlistedModels: true,
 })
+await llm.chat('openai-compatible:qwen-max', { messages })
 ```
 
-模型 ID 可以直接写远端真实 ID：
+## 进一步阅读
 
-```ts
-await llm.chat('openai-compatible:qwen-max', {
-  messages: [{ role: 'user', content: '你好' }],
-})
-```
-
-## 5. 模型别名
-
-常用别名可以直接使用：
-
-| 调用名 | 实际模型 |
-| --- | --- |
-| `openai:gpt4o-mini` | `openai:gpt-4o-mini` |
-| `deepseek:chat` | `deepseek:deepseek-chat` |
-| `deepseek:reasoner` | `deepseek:deepseek-reasoner` |
-| `anthropic:sonnet` | `anthropic:claude-sonnet-4-5` |
-| `anthropic:haiku` | `anthropic:claude-haiku-4-5` |
-
-如果开启 `allowUnlistedModels`，未在本地清单中的 `provider:model` 会作为远端自定义模型处理。
-
-## 6. 本仓库内试用
-
-在真实 key 已导出后，可以直接运行 TypeScript 示例：
-
-```bash
-pnpm --filter @you-want/polyllm-example-typescript start -- deepseek:chat "你好，PolyLLM"
-pnpm --filter @you-want/polyllm-example-typescript start -- --stream openai:gpt-4o-mini "你好"
-```
-
-Python 可在构建 wheel 后试用：
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install python/dist/*.whl
-.venv/bin/python python/examples/chat.py --model deepseek:chat "你好，PolyLLM"
-```
+- [compatibility.md](compatibility.md) — 各供应商能力矩阵(工具/视觉/JSON Mode)
+- [protocol.md](protocol.md) — 协议与生命周期规范
+- [api-stability.md](api-stability.md) — 公共 API 稳定性约定
+- [migrations/v0.3-to-v0.4.md](migrations/v0.3-to-v0.4.md) — 0.3 → 0.4 行为变化
+- [roadmap.md](roadmap.md) — 版本规划

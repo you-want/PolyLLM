@@ -5,9 +5,36 @@
 
 # PolyLLM · 万剑归宗
 
-PolyLLM 是一个微内核、插件化的大模型统一接入层。核心只负责协议、注册、解析和参数策略；每个模型供应商独立成包，按需安装。
+PolyLLM 是一个微内核、插件化的大模型统一接入层。同一份业务代码切换供应商不用换 SDK——TypeScript 与 Python 双语言一致的协议、可判断的错误、可控的请求生命周期(超时/取消/重试)。核心只负责协议、注册、解析和参数策略;每个模型供应商独立成包,按需安装。
 
-官网：<https://polyllm.raingpt.top>
+官网:<https://polyllm.raingpt.top>
+
+## 快速开始
+
+当前稳定版本 **0.4.0**(npm / PyPI)。完整指南见 [docs/getting-started.md](docs/getting-started.md)。
+
+```bash
+# TypeScript / Node
+npm install @you-want/polyllm-core @you-want/polyllm-openai @you-want/polyllm-gemini
+
+# Python
+python -m pip install polyllm-core polyllm-openai polyllm-gemini
+```
+
+```ts
+import { createLLM } from '@you-want/polyllm-core'
+import { openAIPlugin } from '@you-want/polyllm-openai'
+
+export const llm = createLLM({
+  plugins: [openAIPlugin],
+  providers: { openai: { apiKeyEnv: 'OPENAI_API_KEY' } },
+})
+const resp = await llm.chat('openai:gpt-4o-mini', {
+  messages: [{ role: 'user', content: '你好，PolyLLM' }],
+})
+```
+
+不想写代码?`npx @you-want/polyllm-cli studio` 一键可视化选供应商、探模型、生成完整项目。
 
 ## 包结构
 
@@ -51,7 +78,7 @@ createLLM() ── 模型解析 ── 参数校验 ── 插件分发
 
 新手接入指南见 `docs/getting-started.md`。
 
-项目路线图见 [roadmap](docs/roadmap.md)，下一版见 [0.4.0 计划](docs/plans/v0.4.0-plan.md)，公共 API 稳定性约定见 [API stability](docs/api-stability.md)。当前稳定版本为 **0.3.0**（npm / PyPI）。
+项目路线图见 [roadmap](docs/roadmap.md)，下一版见 [0.5.0 计划](docs/plans/v0.5.0-plan.md)，公共 API 稳定性约定见 [API stability](docs/api-stability.md)。当前稳定版本为 **0.4.0**（npm / PyPI）。
 
 ```bash
 pnpm install
