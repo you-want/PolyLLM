@@ -37,12 +37,60 @@ Transport = Callable[[str, str, dict[str, str], dict[str, Any] | None, int], tup
 FinishReason = Literal["stop", "length", "tool_calls", "content_filter", "other"]
 
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+GEMINI_IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"}
+GEMINI_IMAGE_MAX_BYTES = 20 * 1024 * 1024  # 20 MiB, aligned with Gemini inlineData limits.
 
 
 def normalize_gemini_model_id(model_id: str) -> str:
     """Gemini 资源名形如 `models/gemini-2.5-flash`，统一去掉 `models/` 前缀。"""
     prefix = "models/"
     return model_id[len(prefix):] if model_id.startswith(prefix) else model_id
+
+
+def _gemini_image_parts(part: Any, provider: str) -> list[dict[str, Any]]:
+    """Map a ``data:`` image URL to Gemini ``inlineData`` parts (0.5.0 T2).
+
+    Accepts ``data:image/png;base64,<payload>``. Remote ``http(s)://`` URLs
+    are rejected (SSRF boundary maintained from 0.4.0). MIME type and size
+    are validated against Gemini's documented limits.
+    """
+    raw_url = (part.image_url or {}).get("url") if isinstance(part.image_url, dict) else getattr(part.image_url, "url", None)
+    if not raw_url:
+        raise PolyLLMError(
+            "UNSUPPORTED_PARAMETER",
+            "Gemini 图片输入需要 image_url.url 字段",
+            {"provider": provider, "parameter": "messages[content=image_url]"},
+        )
+    if not raw_url.startswith("data:"):
+        raise PolyLLMError(
+            "UNSUPPORTED_PARAMETER",
+            "Gemini 插件不支持远程图片 URL，请使用 data: URL（base64）形式",
+            {"provider": provider, "parameter": "messages[content=image_url]"},
+        )
+    import re
+    match = re.match(r"^data:([^;]+);base64,(.+)$", raw_url, re.DOTALL)
+    if not match:
+        raise PolyLLMError(
+            "UNSUPPORTED_PARAMETER",
+            f"Gemini 图片输入无法解析的 data: URL: {raw_url[:64]}…",
+            {"provider": provider, "parameter": "messages[content=image_url]"},
+        )
+    mime_type = match.group(1)
+    if mime_type not in GEMINI_IMAGE_MIME_TYPES:
+        raise PolyLLMError(
+            "UNSUPPORTED_PARAMETER",
+            f"Gemini 不支持媒体类型 {mime_type}，支持: {', '.join(sorted(GEMINI_IMAGE_MIME_TYPES))}",
+            {"provider": provider, "parameter": "messages[content=image_url]", "mimeType": mime_type},
+        )
+    base64_payload = match.group(2)
+    byte_length = (len(base64_payload) * 3) // 4
+    if byte_length > GEMINI_IMAGE_MAX_BYTES:
+        raise PolyLLMError(
+            "UNSUPPORTED_PARAMETER",
+            f"Gemini 图片大小 {byte_length} 字节超出 {GEMINI_IMAGE_MAX_BYTES} 字节（20 MiB）上限",
+            {"provider": provider, "parameter": "messages[content=image_url]", "byteLength": byte_length},
+        )
+    return [{"inlineData": {"mimeType": mime_type, "data": base64_payload}}]
 
 
 class GeminiPlugin(LLMPlugin):
@@ -185,7 +233,7 @@ class GeminiPlugin(LLMPlugin):
             provider=self.provider,
             capabilities=ModelCapabilities(
                 streaming=True,
-                vision=False,
+                vision=True,
                 function_calling=True,
                 json_mode=False,
                 system_prompt=True,
@@ -228,11 +276,7 @@ class GeminiPlugin(LLMPlugin):
                     if part.type == "text":
                         parts.append({"text": part.text or ""})
                     elif part.type == "image_url":
-                        raise PolyLLMError(
-                            "UNSUPPORTED_PARAMETER",
-                            "Gemini 插件暂不支持远程图片 URL，请直接提供 base64 内容或改用其他供应商",
-                            {"provider": self.provider},
-                        )
+                        parts.extend(_gemini_image_parts(part, self.provider))
             if message.tool_calls:
                 for call in message.tool_calls:
                     parts.append(

@@ -2,7 +2,7 @@ from polyllm_core.types import ModelCapabilities, ModelSpec, NumericParamRange
 
 capabilities = ModelCapabilities(
     streaming=True,
-    vision=False,
+    vision=True,
     function_calling=True,
     json_mode=False,
     system_prompt=True,

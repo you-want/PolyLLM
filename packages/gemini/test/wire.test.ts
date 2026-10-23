@@ -105,7 +105,7 @@ describe('Gemini wire protocol', () => {
     expect(normalizeGeminiModelId('gemini-2.5-flash')).toBe('gemini-2.5-flash')
   })
 
-  it('rejects remote image URLs at the wire boundary', () => {
+  it('rejects remote http(s) image URLs at the wire boundary', () => {
     expect(() =>
       buildGeminiRequestBody(
         {
@@ -119,6 +119,51 @@ describe('Gemini wire protocol', () => {
         },
         context,
       ),
-    ).toThrow('暂不支持远程图片 URL')
+    ).toThrow('不支持远程图片 URL')
+  })
+
+  it('maps data: URL base64 image to inlineData', () => {
+    const png = 'data:image/png;base64,iVBORw0KGgo='
+    const body = buildGeminiRequestBody(
+      {
+        model: 'gemini-2.5-flash',
+        messages: [
+          { role: 'user', content: [{ type: 'image_url', imageUrl: { url: png } }] },
+        ],
+      },
+      context,
+    )
+    const userTurn = (body.contents as Array<{ parts: Array<{ inlineData?: unknown; text?: string }> }>).find(
+      (c) => c.role === 'user',
+    )
+    expect(userTurn?.parts?.[0]?.inlineData).toEqual({ mimeType: 'image/png', data: 'iVBORw0KGgo=' })
+  })
+
+  it('rejects unsupported image MIME types', () => {
+    expect(() =>
+      buildGeminiRequestBody(
+        {
+          model: 'gemini-2.5-flash',
+          messages: [
+            { role: 'user', content: [{ type: 'image_url', imageUrl: { url: 'data:image/gif;base64,AAA=' } }] },
+          ],
+        },
+        context,
+      ),
+    ).toThrow('不支持媒体类型')
+  })
+
+  it('rejects images without a data: URL prefix', () => {
+    expect(() =>
+      buildGeminiRequestBody(
+        {
+          model: 'gemini-2.5-flash',
+          messages: [
+            { role: 'user', content: [{ type: 'image_url', imageUrl: { url: 'ftp://example.com/a.png' } }] },
+          ],
+        },
+        context,
+      ),
+    ).toThrow('不支持远程图片 URL')
   })
 })

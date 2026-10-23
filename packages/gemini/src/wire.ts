@@ -76,17 +76,73 @@ function parseToolArguments(args: JsonRecord): string {
   return JSON.stringify(args)
 }
 
+const GEMINI_IMAGE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+])
+const GEMINI_IMAGE_MAX_BYTES = 20 * 1024 * 1024 // 20 MiB, aligned with Gemini inlineData limits.
+
+/**
+ * Map a `data:` image URL to Gemini's `inlineData` part.
+ *
+ * Accepts `data:image/png;base64,<payload>` (the standard data-URL form).
+ * Remote `http(s)://` URLs are rejected (SSRF boundary maintained from 0.4.0).
+ * MIME type and size are validated against Gemini's documented limits.
+ */
+export function mapImagePart(part: UnifiedContentPart): GeminiContentPart[] {
+  if (part.type !== 'image_url') return []
+  const rawUrl = part.imageUrl?.url
+  if (!rawUrl) {
+    throw new PolyLLMError(
+      'UNSUPPORTED_PARAMETER',
+      'Gemini 图片输入需要 image_url.imageUrl.url 字段',
+      { provider: 'gemini', parameter: 'messages[content=image_url]' },
+    )
+  }
+  if (!rawUrl.startsWith('data:')) {
+    throw new PolyLLMError(
+      'UNSUPPORTED_PARAMETER',
+      'Gemini 插件不支持远程图片 URL，请使用 data: URL（base64）形式',
+      { provider: 'gemini', parameter: 'messages[content=image_url]' },
+    )
+  }
+  const match = rawUrl.match(/^data:([^;]+);base64,(.+)$/s)
+  if (!match) {
+    throw new PolyLLMError(
+      'UNSUPPORTED_PARAMETER',
+      `Gemini 图片输入无法解析的 data: URL: ${rawUrl.slice(0, 64)}…`,
+      { provider: 'gemini', parameter: 'messages[content=image_url]' },
+    )
+  }
+  const mimeType = match[1]
+  if (!GEMINI_IMAGE_MIME_TYPES.has(mimeType)) {
+    throw new PolyLLMError(
+      'UNSUPPORTED_PARAMETER',
+      `Gemini 不支持媒体类型 ${mimeType}，支持: image/png, image/jpeg, image/webp, image/heic, image/heif`,
+      { provider: 'gemini', parameter: 'messages[content=image_url]', mimeType },
+    )
+  }
+  const base64Payload = match[2]
+  // Each base64 character encodes ~3/4 of a byte.
+  const byteLength = Math.floor((base64Payload.length * 3) / 4)
+  if (byteLength > GEMINI_IMAGE_MAX_BYTES) {
+    throw new PolyLLMError(
+      'UNSUPPORTED_PARAMETER',
+      `Gemini 图片大小 ${byteLength} 字节超出 ${GEMINI_IMAGE_MAX_BYTES} 字节（20 MiB）上限`,
+      { provider: 'gemini', parameter: 'messages[content=image_url]', byteLength },
+    )
+  }
+  return [{ inlineData: { mimeType, data: base64Payload } }]
+}
+
 function mapContent(content: string | UnifiedContentPart[]): GeminiContentPart[] {
   if (typeof content === 'string') return content ? [{ text: content }] : []
   return content.flatMap((part): GeminiContentPart[] => {
     if (part.type === 'text') return part.text ? [{ text: part.text }] : []
-    if (part.type === 'image_url') {
-      throw new PolyLLMError(
-        'UNSUPPORTED_PARAMETER',
-        'Gemini 插件暂不支持远程图片 URL，请直接提供 base64 内容或改用其他供应商',
-        { provider: 'gemini' },
-      )
-    }
+    if (part.type === 'image_url') return mapImagePart(part)
     return []
   })
 }

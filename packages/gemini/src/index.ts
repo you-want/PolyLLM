@@ -26,7 +26,7 @@ export const geminiPlugin: LLMPlugin = {
       provider: 'gemini',
       capabilities: {
         streaming: true,
-        vision: false,
+        vision: true,
         functionCalling: true,
         jsonMode: false,
         systemPrompt: true,

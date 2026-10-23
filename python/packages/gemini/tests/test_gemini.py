@@ -83,9 +83,37 @@ class GeminiTests(unittest.TestCase):
             )
         self.assertIn("UNSUPPORTED_PARAMETER", getattr(caught.exception, "code", str(caught.exception)))
 
-    def test_dynamic_model_disables_vision_until_supported(self):
+    def test_chat_accepts_data_url_image(self):
+        def transport(method, url, headers, payload, timeout):
+            import json
+            self.assertIn("inlineData", json.dumps(payload), "expected inlineData in payload")
+            self.assertIn("image/png", json.dumps(payload))
+            return 200, json.dumps({
+                "candidates": [{
+                    "content": {"parts": [{"text": "ok"}]},
+                    "finishReason": "STOP",
+                }],
+                "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 2},
+            })
+
+        import json as _json
+        plugin = GeminiPlugin(transport)
+        request = UnifiedRequest(
+            model="gemini-2.5-flash",
+            messages=[
+                UnifiedMessage(
+                    role="user",
+                    content=[UnifiedContentPart(type="image_url", image_url={"url": "data:image/png;base64,iVBORw0KGgo="})],
+                ),
+            ],
+        )
+        asyncio.run(
+            plugin.chat(request, ProviderConfig(api_key="k"), ChatContext(model=plugin.models[0]))
+        )
+
+    def test_dynamic_model_enables_vision(self):
         spec = GeminiPlugin().create_model_spec("custom-gemini")
-        self.assertFalse(spec.capabilities.vision)
+        self.assertTrue(spec.capabilities.vision)
 
     def test_stream_parses_sse(self):
         first = json.dumps({"candidates": [{"content": {"parts": [{"text": "好"}]}}]})

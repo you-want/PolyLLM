@@ -10,7 +10,7 @@ export const geminiModels: readonly ModelSpec[] = [
     isLatest: true,
     capabilities: {
       streaming: true,
-      vision: false,
+      vision: true,
       functionCalling: true,
       jsonMode: false,
       systemPrompt: true,
@@ -32,7 +32,7 @@ export const geminiModels: readonly ModelSpec[] = [
     isLatest: true,
     capabilities: {
       streaming: true,
-      vision: false,
+      vision: true,
       functionCalling: true,
       jsonMode: false,
       systemPrompt: true,
