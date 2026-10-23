@@ -1,6 +1,8 @@
 # PolyLLM Python 0.4.0
 
-Published to PyPI; release closeout pending. See the [release guide](../release.md) for the repeatable TestPyPI → PyPI workflow.
+Published to PyPI on 2026-10-23; release closeout completed. See the [release guide](../release.md) for the repeatable TestPyPI → PyPI workflow.
+
+- Release commit: `585faf0ae6b2cb899b99b6547ae17283ba26420a`; unified tag `v0.4.0`. All seven packages (`polyllm-core`, `polyllm-openai`, `polyllm-openai-compatible`, `polyllm-deepseek`, `polyllm-anthropic`, `polyllm-gemini`, `polyllm-ollama`) are on PyPI as `0.4.0` with both wheel and sdist.
 
 - Froze the cross-language protocol: shared JSON fixtures plus `verify:protocol --python` and `--diff` gates now run in CI for `polyllm-core`, `polyllm-openai`, `polyllm-gemini`, `polyllm-openai-compatible`, and other provider packages; TypeScript and Python outputs are diffed field-by-field.
 - Added machine-readable error classification to `PROVIDER_ERROR` `details`: `category` (`auth` / `permission` / `rate_limited` / `server` / `connection` / `invalid_response` / `timeout` / `cancelled`), `retryable`, `requestId`, `retryAfterSeconds`. Existing `code`-based catch paths remain unchanged.

@@ -2,9 +2,9 @@
 
 PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统一接入层。核心协议保持小而稳定，供应商差异收敛在独立插件中，Studio 负责本地安全配置与项目初始化。
 
-## 当前正式版本：0.3.0
+## 当前正式版本：0.4.0
 
-2026-10-16 完成 npm / PyPI 发布。日常发版按 [发布手册](release.md)；下一版执行范围与验收标准见 [0.4.0 计划](plans/v0.4.0-plan.md)。
+2026-10-23 完成 npm / PyPI 发布（tag `v0.4.0`，release commit `585faf0`）。日常发版按 [发布手册](release.md)；下一版建议目标见版本表与 [0.4.0 计划](plans/v0.4.0-plan.md)。
 
 - TypeScript Core 与 Python Core
 - OpenAI、DeepSeek、Anthropic、OpenAI-compatible、Gemini、Ollama 插件
@@ -38,7 +38,7 @@ PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统
 
 ## 0.4.0 稳定协议
 
-状态：开发完成，待 npm / PyPI 正式发布。P0 全部完成（T1–T5）；P1 延期项见 [0.4.0 计划 §11](plans/v0.4.0-plan.md)。
+状态：已发布（2026-10-23，tag `v0.4.0`）。P0 全部完成（T1–T5）；P1 延期项见 [0.4.0 计划 §11](plans/v0.4.0-plan.md)。
 
 - M1：协议草案、TS/Python 差异清单、Python 底层请求取消可行性验证
 - M2：兼容现有错误码的错误分类、统一超时/取消与资源释放、默认关闭的可选重试
