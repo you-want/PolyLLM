@@ -9,6 +9,7 @@
     "build": "pnpm --filter @you-want/polyllm-studio-app... build && pnpm -r run build",
     "build:python": "python3 python/build_packages.py",
     "test": "pnpm -r run test",
+    "test:scripts": "node scripts/test/promote-npm-dist-tag.test.mjs",
     "test:python": "python3 python/run_tests.py",
     "typecheck:python": "python3 -m mypy --config-file python/mypy.ini",
     "verify:python": "python3 python/verify_packages.py",

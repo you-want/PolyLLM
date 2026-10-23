@@ -203,7 +203,14 @@ Actions → **Release npm → Run workflow**：
 | npm release operation | `promote-latest` |
 | Confirmation | `PROMOTE_LATEST` |
 
-此操作逐包运行 `npm dist-tag add <包>@<冻结版本> latest`，只移动标签。若部分成功后失败，可修正原因再重跑；已经设置好的标签会提示 `already set`，属正常情况。
+此操作调用 `node scripts/promote-npm-dist-tag.mjs latest`,逐包执行「标签预检 → 版本存在性检查 → 带有限重试的标签移动」,只移动标签。行为:
+
+- **幂等**:已正确指向目标版本的包标记 `already-set` 并跳过,不重复 `npm dist-tag add`。
+- **预检**:对每个包先 `npm view <pkg> versions` 确认目标版本确实在 registry,缺失则报 `missing-version` 且不动标签(避免把标签指向不存在的版本)。
+- **有限重试**:对 5xx/503 暂时性错误最多重试 3 次(指数退避);对 403/409 不重试,直接报告并退出非零。
+- **部分成功清单**:结束时输出逐包状态(`ok` / `already-set` / `missing-version` / `error`)与成功/失败计数;有失败时退出码非零。
+
+部分成功后重跑即可恢复:已 `already-set` 的包自动跳过,只补未完成的。`--dry-run` 可预演而不动任何标签。
 
 再次执行第 4 节的逐包标签查询，要求 **9 个包的 `next`、`latest` 都指向目标版本**。然后用不带版本号的安装命令验证用户默认安装到正确版本。
 
@@ -240,7 +247,7 @@ python3 -m venv .venv
 | npm `E403 ... This trusted publisher cannot manage dist-tags` | 打开**报错包**的 npm Settings，编辑 Trusted Publisher，启用 **Allow npm dist-tag**。逐包检查后续尚未处理的包；修正后重跑 `promote-latest`。无须重新上传包。 |
 | `latest is already set to version ...` | 正常，标签已正确设置。 |
 | `Unknown user config "always-auth"` / npm 2FA notice | 这些提示本身不是该次失败原因；定位最后的 error。 |
-| Sigstore / Rekor `HTTP 502` | 第三方签名服务暂时异常。先核对该包是否已上传；未上传时在原 run 右上角 **Re-run jobs → Re-run failed jobs**。不要先关 attestations，也不要重新全量上传已成功包。 |
+| npm `E503` 上传阶段部分包失败 | 503 是 registry 暂时性故障。先逐包 `npm view dist-tags` 核对哪些已传、哪些缺失,**不要**全量重传已成功的包。`publish-next` 可重跑(changesets 自动跳过已存在的版本,只补缺失);`promote-latest` 重跑 `node scripts/promote-npm-dist-tag.mjs latest` 同样幂等,`already-set` 自动跳过。 |
 | PyPI `File already exists` / 同版本重复上传 | 核对目标注册表逐包版本与两种文件。全部存在并安装可用时无需再次发布；部分缺失则只处理缺失项。当前 workflow 未配置 `skip-existing`，也没有任意单包选择器，优先重跑原失败 job。若同一失败 job 已上传一个文件，需单独设计缺失文件补传，不能盲重跑。 |
 | Trusted Publisher 身份不匹配 | 核对 owner、repo、workflow 文件名、Environment 和目标注册表。TestPyPI 设置不等于 PyPI 设置。 |
 | 整次 workflow 报红但部分包已发布 | 以逐包 registry 状态为准；npm 标签可重复移动，PyPI 文件不能覆盖，两者恢复方式不同。 |

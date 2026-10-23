@@ -64,6 +64,7 @@ jobs:
       - run: python -m pip install -r python/requirements-dev.txt
       - run: pnpm build
       - run: pnpm test
+      - run: pnpm test:scripts
       - run: pnpm test:python
       - run: pnpm typecheck
       - run: pnpm typecheck:python
