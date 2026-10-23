@@ -1,86 +1,68 @@
 # PolyLLM Roadmap
 
-PolyLLM 的目标是成为一个微内核、插件化、多语言的大模型统一接入层。核心协议保持小而稳定，供应商差异收敛在独立插件中，Studio 负责本地安全配置与项目初始化。
+> 更新：2026-10-23。目标：做有外部用户持续使用的开源产品。
+> 当前正式版本：**0.5.0**。下一步先交付 **0.5.1 兼容性修复**，再验证 **0.6.0 接入诊断实验**。
 
-## 当前正式版本：0.4.0
+## 1. 当前基线：0.5.0 已发布
 
-2026-10-23 完成 npm / PyPI 发布（tag `v0.4.0`，release commit `585faf0`）。日常发版按 [发布手册](release.md)；下一版建议目标见版本表与 [0.4.0 计划](plans/v0.4.0-plan.md)。
+2026-10-23 完成 npm / PyPI 发布，tag `v0.5.0`，release commit `fd3b964`；9 个 npm 包和 7 个 Python 包同步。发布事实以 [0.5.0 发布记录](release/v0.5.0.md)和 [Python 发布记录](release/python-v0.5.0.md)为准，操作见 [发布手册](release.md)。
 
-- TypeScript Core 与 Python Core
-- OpenAI、DeepSeek、Anthropic、OpenAI-compatible、Gemini、Ollama 插件
-- OpenAI-compatible 预设（OpenRouter / Qwen / Moonshot / Groq / vLLM / LiteLLM）
-- 本地 Studio 与 CLI，含 `new-plugin` 供应商脚手架
-- 模型发现、自定义模型、默认模型和配置生成
-- npm / PyPI 发布校验、Changesets、CI 和官网
+已交付能力：
 
-## 0.3.0 生态扩展
+- TS / Python Core、六类官方供应商插件与 OpenAI-compatible 预设。
+- 明确的错误分类、超时／取消／显式重试、Schema 与跨语言契约门禁。
+- 本地 Studio、CLI、配置和项目生成、自定义插件脚手架。
+- Gemini base64/data URL 图片输入（远程 URL 仍拒绝）、模型发现统一超时。
+- npm 发布恢复工具、在线 Mock 示例与试用入口。
 
-### 新增供应商插件
+“已发布”不等于全部真实服务已验证。兼容性声明以 [能力矩阵](compatibility.md)的证据范围为准；发布后发现的问题进入修订版计划。
 
-- [x] Gemini 插件（TypeScript + Python）：独立 wire（`generateContent` / `streamGenerateContent`），工具调用 + 流式；当前 `vision=false`，图片输入待后续评估
-- [x] Ollama 插件（TypeScript + Python）：本地默认 Base URL，无需 API Key，`listModels` 走原生 `/api/tags`
+## 2. 下一阶段的产品选择
 
-### OpenAI-compatible 预设
+保留微内核、独立插件和现有双语言 SDK，优先提高已承诺行为的可靠性。增长方向先验证一个具体任务：**帮助开发者定位自定义模型端点的接入故障，生成可重放证据和最小复现。**
 
-- [x] OpenRouter / Qwen / Moonshot / Groq / vLLM / LiteLLM 作为预设接入，不出独立包
-- [x] Studio 面板预设选择器：选中后自动填充 Base URL、密钥环境变量名与默认模型
+第一批目标用户：已有 TS/Node 应用，通过公司代理、LiteLLM、vLLM 或其他 OpenAI-compatible 端点调用模型，遇到“普通聊天可用，但工具、参数或流式行为异常”的开发者。诊断实验应允许其保留现有 SDK／网关。
 
-### 自定义插件脚手架
+这是待验证方向，尚不是已经实现的功能或确定的产品转型。Vercel AI SDK、LiteLLM SDK 已有成熟适配；promptfoo 和 LiteLLM health checks 已覆盖大量评测与可用性检查。只有具体故障的定位、复现和升级回归确实节省用户工作，才扩大投入。
 
-- [x] `polyllm new-plugin` CLI 子命令，生成可发布的供应商插件包骨架（含 mock 测试与发布检查清单）
+## 3. 执行顺序
 
-### 协议增强（推迟到 0.4.0）
+| 阶段 | 交付 | 退出条件 | 文档 |
+| --- | --- | --- | --- |
+| 0.5.1：近期 P0 | Gemini wire 修复、TS/Python 参数策略对齐、证据和首次接入说明 | 原错误可被独立回归捕获；发布门禁通过；修订包安装验收完成 | [0.5.1 计划](plans/v0.5.1-plan.md) |
+| 0.6.0：先做需求验证 | 收集外部案例，比较现有工具与小脚本能否解决 | 至少 5 个可复现案例，确认重复痛点；否则缩小或停止新产品开发 | [0.6.0 计划](plans/v0.6.0-plan.md) |
+| 0.6.0：有限实现与试用 | CLI 诊断、版本化报告、脱敏 fixture／最小复现；Studio 复用 | 外部用户能独立完成；出现再次使用与可重复检查证据 | [六周实验与决策门](plans/v0.6.0-plan.md#6-六周实验与决策门) |
+| 后续／1.0 | 依据重复需求确定能力面与稳定 API | 有持续外部采用、稳定协议及迁移策略；不按日历承诺版本 | 由实验复盘新增计划 |
 
-- 统一供应商错误分类
-- Retry / backoff / 超时与取消的统一策略
-- Tool Calling / Vision / JSON Mode 的跨供应商一致性
-- 语言无关 JSON Schema 与跨语言一致性测试
+0.5.1 不等待增长实验结束。六周是从修复阶段启动后的时间盒，不是强制在第六周发布 0.6.0；调研、实现、发布与用户复用是不同验收项。
 
-## 0.4.0 稳定协议
+## 4. 维护与范围
 
-状态：已发布（2026-10-23，tag `v0.4.0`）。P0 全部完成（T1–T5）；P1 延期项见 [0.4.0 计划 §11](plans/v0.4.0-plan.md)。
+- 现有 TS/Python 公共协议修复两端对齐；不让任一已发布语言失去兼容维护。
+- 新诊断入口优先复用 TS CLI 与 Studio，报告／fixtures 使用语言无关 JSON；没有真实需求前不复制一套 Python 诊断运行时。
+- 继续按供应商／协议发布包，不按每个模型或兼容厂商品牌扩包。
+- 保持默认 strict、默认关闭重试、首个可见流 chunk 后不自动重放等边界；行为变更须说明迁移影响。
+- 暂缓新增供应商广度、Rust/Go/Java、完整 AI Gateway、预算／集群平台、Agent/RAG／自动工具执行和云控制台。
+- 0.6 的能力声明覆盖、报告格式与 CLI 扩展是待设计接口，不提前写进稳定 API 保证。
 
-- M1：协议草案、TS/Python 差异清单、Python 底层请求取消可行性验证
-- M2：兼容现有错误码的错误分类、统一超时/取消与资源释放、默认关闭的可选重试
-- M3：语言无关 JSON Schema、共享 fixtures 与 CI、Tool Calling / Vision / JSON Mode 能力矩阵、迁移指南
-- M4：生成器/脚手架同步、全量门禁、next/TestPyPI/正式发布与安装验收
-- P1：Gemini base64 图片输入与 npm 标签预检/恢复提示；不阻塞 P0 协议交付
+## 5. 增长证据与投入决策
 
-详细任务、依赖顺序和退出标准以 [0.4.0 计划](plans/v0.4.0-plan.md) 为准。Rust Core 保持需求评估，不纳入本版实施范围。
+主要观察：真实案例数、独立完成首次诊断的项目数、第二次使用、进入 CI／发布检查、外部 fixture 或 issue。Star、页面访问和 npm/PyPI 下载只作辅助，不等于用户数或留存。
 
-## 0.5.0 能力补齐与推广就绪
+六周目标及记录模板见 [0.6.0 计划](plans/v0.6.0-plan.md)。门槛是本项目的实验假设，不是行业标准。外部访谈与试用由维护者安排，文档不代表已经邀请或获得用户。
 
-状态：开发完成（T1–T5），待 npm / PyPI 正式发布。承接 0.4.0 延期的 P1 项与发布暴露的运维缺口。
+- 有复用证据：围绕最常见的故障类型继续迭代，再决定更多 SDK 导出和集成。
+- 只有一次试用：限制新增功能，修复采用障碍后做一次有期限的复测。
+- 现有工具足够或两轮仍无复用：收缩为稳定 SDK、自用工作台或评测工具扩展，停止扩展独立诊断平台。
 
-- T1：npm 发布恢复工具——标签预检、部分成功清单、暂时性错误有限重试（0.4.0 发布实测暴露 503 部分包失败只能全量重跑的痛点）。
-- T2：Gemini base64 图片输入——`data:` URL / base64 映射为 `inlineData`，媒体类型与大小校验，远程 URL 仍拒绝（SSRF 边界保持）。
-- T3：`listModels` 接入统一调用超时预算（0.4.0 D9 遗留）。
-- P1：在线 demo 模板（免 clone）与推广就绪检查。
+## 6. 历史版本
 
-详细任务、依赖顺序和退出标准以 [0.5.0 计划](plans/v0.5.0-plan.md) 为准。
+| 版本 | 已完成的主线 | 记录 |
+| --- | --- | --- |
+| 0.1.0 | Core、插件、Studio、CLI 与基础发布 | [发布记录](release/v0.1.0.md) |
+| 0.2.0 | 项目生成、Python 生成物与初始化 | [发布记录](release/v0.2.0.md) |
+| 0.3.0 | Gemini、Ollama、兼容预设、插件脚手架 | [历史计划](plans/v0.3.0-plan.md) |
+| 0.4.0 | 错误／生命周期、Schema、跨语言测试 | [历史计划](plans/v0.4.0-plan.md) |
+| 0.5.0 | Gemini 图片、模型发现超时、发布恢复、试用入口 | [已完成计划](plans/v0.5.0-plan.md) |
 
-## 语言策略
-
-```text
-TypeScript → Python → 协议冻结 → Rust 评估 → Go / Java
-```
-
-当前不使用 Rust 重写核心。TypeScript 和 Python 先采用各自生态的原生实现；协议稳定后再共享 Schema 或生成部分类型。Rust、Go、Java 只有在协议稳定且有明确用户需求时加入，否则会把维护成本扩大数倍。
-
-## 包与产品边界
-
-- 包按供应商或协议发布，不按单个模型发布
-- Studio 生成用户项目，不生成新的 PolyLLM 包
-- 官网只做文档、安装引导和产品介绍
-- API Key 配置、模型探测和连接测试只在用户本机 Studio 完成
-
-## 版本目标
-
-| 版本 | 目标 |
-| --- | --- |
-| `0.1.0` | MVP 内测，跑通 Core、插件、Studio、CLI 和基础发布流程 |
-| `0.2.0` | 可用版本，完成稳定性门禁、Python Studio 生成和 ZIP 初始化 |
-| `0.3.0` | 生态版本，Gemini / Ollama 插件、OpenAI-compatible 预设与自定义插件脚手架 |
-| `0.4.0` | 稳定协议，Schema、跨语言测试和兼容性矩阵 |
-| `0.5.0` | 能力补齐与推广就绪：Gemini 图片、模型发现超时、npm 发布恢复工具 |
-| `1.0.0` | API 稳定、发布稳定、文档和迁移策略完整 |
+路线图用于当前方向；历史计划保留当时的需求与约束，不作为下一版待办。
