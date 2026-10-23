@@ -38,7 +38,7 @@ describe('PolyLLM CLI', () => {
     const manifest = JSON.parse(files.find((file) => file.path === 'package.json')?.content ?? '{}') as {
       dependencies: Record<string, string>
     }
-    expect(manifest.dependencies['@you-want/polyllm-openai']).toBe('^0.4.0')
+    expect(manifest.dependencies['@you-want/polyllm-openai']).toBe('^0.5.0')
     expect(files.find((file) => file.path === 'polyllm.config.json')?.content).toContain('models')
     expect(files.find((file) => file.path === 'src/llm.ts')?.content).toContain('export const defaultModel = "openai:gpt-4o-mini"')
     expect(files.find((file) => file.path === 'src/llm.ts')?.content).toContain('allowUnlistedModels: true')
@@ -53,7 +53,7 @@ describe('PolyLLM CLI', () => {
     const paths = files.map((file) => file.path)
     expect(paths).toContain('pyproject.toml')
     expect(paths).toContain('src/my_python_app/llm.py')
-    expect(files.find((file) => file.path === 'pyproject.toml')?.content).toContain('polyllm-openai>=0.4.0,<0.5.0')
+    expect(files.find((file) => file.path === 'pyproject.toml')?.content).toContain('polyllm-openai>=0.5.0,<0.6.0')
   })
 
   it('generates a plugin scaffold package', () => {

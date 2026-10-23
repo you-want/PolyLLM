@@ -38,7 +38,7 @@ async def execute(case):
             return 200, ''.join('data: '+json.dumps(e)+'\n\n' for e in case['sourceEvents'])+'data: [DONE]\n\n'
         return 200, json.dumps(case.get('source', {'id':'resp', 'model':'gpt-4o-mini','choices':[{'index':0,'message':{'role':'assistant','content':'ok'},'finish_reason':'stop'}], 'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}}))
     plugins = [OpenAIPlugin(transport), GeminiPlugin(transport), OpenAICompatiblePlugin(transport, provider='custom-gateway')]
-    llm = create_llm(plugins=plugins, providers={p.provider:{'api_key':'fixture-key','base_url':'https://fixture.invalid/v1'} for p in plugins}, allow_unlisted_models=case['id']=='dynamic-model-conservative-capabilities')
+    llm = create_llm(plugins=plugins, providers={p.provider:{'api_key':'fixture-key','base_url':'https://fixture.invalid/v1'} for p in plugins}, allow_unlisted_models=case['id'] in ('dynamic-model-conservative-capabilities','capability-refusal-vision-on-non-vision-model'))
     try:
         if 'request' in case:
             payload=snake(case['request']);model=payload.pop('model')

@@ -39,7 +39,7 @@
       "id": "capability-refusal-vision-on-non-vision-model",
       "valid": true,
       "request": {
-        "model": "gemini:gemini-2.5-flash",
+        "model": "custom-gateway:frontier-x",
         "messages": [
           {
             "role": "user",

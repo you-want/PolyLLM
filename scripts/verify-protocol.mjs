@@ -71,7 +71,7 @@ async function execute(c) {
   }
   const custom = { ...openAICompatiblePlugin, provider: 'custom-gateway', createModelSpec(id) { return { ...openAICompatiblePlugin.createModelSpec(id), provider: 'custom-gateway' } } }
   const plugins = [openAIPlugin, geminiPlugin, custom]
-  const llm = createLLM({ plugins, providers: Object.fromEntries(plugins.map(p => [p.provider, { apiKey: 'fixture-key', baseUrl: 'https://fixture.invalid/v1' }])), allowUnlistedModels: c.id === 'dynamic-model-conservative-capabilities' })
+  const llm = createLLM({ plugins, providers: Object.fromEntries(plugins.map(p => [p.provider, { apiKey: 'fixture-key', baseUrl: 'https://fixture.invalid/v1' }])), allowUnlistedModels: c.id === 'dynamic-model-conservative-capabilities' || c.id === 'capability-refusal-vision-on-non-vision-model' })
   try {
     if (c.request) {
       const { model, ...payload } = c.request
