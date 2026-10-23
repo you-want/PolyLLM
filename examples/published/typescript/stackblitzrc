@@ -1,0 +1,6 @@
+{
+  "title": "PolyLLM Quick Start (TypeScript)",
+  "template": "node",
+  "installDependencies": true,
+  "startCommand": "node src/main.mjs"
+}

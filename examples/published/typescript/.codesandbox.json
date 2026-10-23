@@ -1,0 +1,11 @@
+{
+  "template": "node",
+  "sandbox": {
+    "packages": {
+      ".": {
+        "install": true,
+        "start": "node src/main.mjs"
+      }
+    }
+  }
+}

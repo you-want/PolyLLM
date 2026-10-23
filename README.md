@@ -13,6 +13,8 @@ PolyLLM 是一个微内核、插件化的大模型统一接入层。同一份业
 
 当前稳定版本 **0.4.0**(npm / PyPI)。完整指南见 [docs/getting-started.md](docs/getting-started.md)。
 
+**在线试用(无需安装)**:[CodeSandbox 模板](https://codesandbox.io/s/?file=package.json) 打开即跑,预置本地 Mock 供应商。
+
 ```bash
 # TypeScript / Node
 npm install @you-want/polyllm-core @you-want/polyllm-openai @you-want/polyllm-gemini
@@ -35,6 +37,13 @@ const resp = await llm.chat('openai:gpt-4o-mini', {
 ```
 
 不想写代码?`npx @you-want/polyllm-cli studio` 一键可视化选供应商、探模型、生成完整项目。
+
+## 在线试用
+
+免 clone、免安装,打开即跑(预置本地 Mock 供应商,无需真实 key):
+
+- **TypeScript**:[CodeSandbox 模板](https://codesandbox.io/p/github/you-want/PolyLLM/examples/published/typescript) · [StackBlitz 模板](https://stackblitz.com/github/you-want/PolyLLM/tree/main/examples/published/typescript)
+- **Python**:在 [GitHub 的 GitHub Codespaces](https://codespaces.github.com) 中打开 `examples/published/python`,或用 [Gitpod](https://gitpod.io) 启动
 
 ## 包结构
 
