@@ -87,8 +87,12 @@ class OpenAIPlugin(LLMPlugin):
     def _parse_stream_event(self, event: dict[str, Any], fallback_model: str) -> UnifiedStreamChunk | None:
         return parse_openai_stream_event(event, fallback_model)
 
-    async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
-        status, body = await self._request("GET", "/models", None, config, ChatContext(model=self.models[0]))
+    async def list_models(
+        self,
+        config: ProviderConfig,
+        context: ChatContext | None = None,
+    ) -> list[ProviderModelInfo]:
+        status, body = await self._request("GET", "/models", None, config, context)
         data = self._parse_json(status, body)
         return [
             ProviderModelInfo(

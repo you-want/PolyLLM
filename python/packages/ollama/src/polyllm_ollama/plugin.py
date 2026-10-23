@@ -81,9 +81,13 @@ class OllamaPlugin(LLMPlugin):
         finally:
             await events.aclose()
 
-    async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
+    async def list_models(
+        self,
+        config: ProviderConfig,
+        context: ChatContext | None = None,
+    ) -> list[ProviderModelInfo]:
         base_url = self._resolve_base_url(config)
-        status, body = await self._request("GET", f"{base_url}/api/tags", None, config, None)
+        status, body = await self._request("GET", f"{base_url}/api/tags", None, config, context)
         data = self._parse_json(status, body)
         return [
             ProviderModelInfo(

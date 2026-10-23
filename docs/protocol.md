@@ -159,6 +159,27 @@ ChatContext:
 - Python client 新增关键字参数 `timeout_ms: Optional[int] = None`，写入 `ChatContext`；不改动 `UnifiedRequest` 业务 payload（超时不混入业务字段）。
 - 取消：Python 依赖调用方 task 取消（`asyncio` 原生 `CancelledError`），0.4.0 不提供用户持有的 cancel token；文档说明其语义边界。
 
+### 6.4 模型发现统一超时（0.5.0，T3）
+
+`listModels` / `list_models` 不再保持插件自身默认超时（D9 在 0.4.0 搁置），本版接入与 §6.1 相同的调用预算语义：
+
+TypeScript：
+
+```ts
+// LLMClient.listProviderModels(provider, { timeoutMs })
+const models = await llm.listProviderModels('openai', { timeoutMs: 15_000 })
+```
+
+Python：
+
+```python
+models = await llm.list_provider_models("openai", timeout_ms=15_000)
+```
+
+- 不传 `timeoutMs` / `timeout_ms` 时不做 Core 层预算限制，transport 自身仍有 socket 级兜底。
+- 模型发现是**单次**请求，无重试/退避参与；超时分类为 `category: "timeout"`，`retryable` 由 §7.1 规则决定（默认不自动重试）。
+- 6 类官方插件的 `listModels` / `list_models` 均接收并应用该选项；Studio 的模型发现端点传入 15s 预算。
+
 ## 7. 错误诊断字段（T2 预冻结，供实现与测试引用）
 
 供应商侧错误统一保留 `code = PROVIDER_ERROR`（0.3.0 兼容），`details` 增加可选结构化字段：
@@ -225,7 +246,7 @@ ChatContext:
 - **D6 能力拒绝从静默忽略改为抛 `UNSUPPORTED_PARAMETER`**（§5）。
 - **D7 取消/超时保证**按 §6.1 定义；"调用方提前退出迭代"不再要求供应商停止生成，只保证本端资源释放。
 - **D8 重试不保证幂等**：首次响应未到达时供应商可能已计费；Core 不自动执行 tool，收到首个可见 chunk 后不自动重放（T3 规则，本文件冻结语义，实现见 T3）。
-- **D9 模型发现（`listModels`）暂不接入统一超时选项**，保持插件自身默认；是否纳入 0.4.0 由 T3 里程碑评估，评估结论写入本文件 §6.3 附录。
+- **D9 模型发现（`listModels`）统一超时**：0.4.0 搁置（保持插件自身默认）；0.5.0 T3 已接入 §6.1 调用预算语义，见 §6.4。
 
 ## 9. Python 取消可行性证据（M1 实验记录）
 

@@ -4,7 +4,7 @@ import { stat } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { dirname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { ChatContext, LLMPlugin, ProviderConfig, UnifiedRequest } from '@you-want/polyllm-core'
+import type { ChatContext, LLMPlugin, ListContext, ProviderConfig, UnifiedRequest } from '@you-want/polyllm-core'
 import { createStudioPluginRegistry } from '@you-want/polyllm-studio'
 
 export interface StudioServerOptions {
@@ -48,7 +48,8 @@ async function handleModels(body: string, providerId: string): Promise<Response>
   if (!plugin?.listModels) return json({ error: `供应商 ${providerId} 不支持获取模型列表` }, 404)
   try {
     const config = JSON.parse(body) as ProviderConfig
-    const models = await plugin.listModels(config)
+    const context: ListContext = { timeoutMs: 15_000 }
+    const models = await plugin.listModels(config, context)
     return json({ models })
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : String(error) }, 502)

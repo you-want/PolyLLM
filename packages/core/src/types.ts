@@ -157,6 +157,19 @@ export interface ChatContext {
 }
 
 /**
+ * Context for a single live model-discovery call (`listModels`).
+ *
+ * Mirrors `ChatContext` but without a concrete model — discovery targets the
+ * provider's `/models` endpoint, not a chat. `timeoutMs` is the total call
+ * budget for the discovery request (headers + body), same semantics as
+ * `ChatContext.timeoutMs` (docs/protocol.md §6.3 / T3).
+ */
+export interface ListContext {
+  signal?: AbortSignal | undefined
+  timeoutMs?: number | undefined
+}
+
+/**
  * Opt-in retry policy. When omitted (the default) no automatic retry happens,
  * so upgrades never silently increase call counts or cost.
  *
@@ -192,7 +205,15 @@ export interface LLMPlugin {
     config: ProviderConfig,
     context: ChatContext,
   ): AsyncIterable<UnifiedStreamChunk>
-  listModels?(config: ProviderConfig): Promise<ProviderModelInfo[]>
+  chatStream?(
+    request: UnifiedRequest,
+    config: ProviderConfig,
+    context: ChatContext,
+  ): AsyncIterable<UnifiedStreamChunk>
+  /** Live model discovery. `context` bounds the call with `timeoutMs`
+   * (total budget, docs/protocol.md §6.3). Optional; providers without a
+   * discovery endpoint may omit it. */
+  listModels?(config: ProviderConfig, context?: ListContext): Promise<ProviderModelInfo[]>
   createModelSpec?(id: string): ModelSpec
 }
 
@@ -211,6 +232,13 @@ export interface ChatOptions {
   retries?: RetryPolicy
 }
 
+export interface ListModelsOptions {
+  /** Total call budget in milliseconds for the discovery request. When
+   * omitted, no Core-level budget is applied (the transport's own socket
+   * timeout still bounds the call). Mirrors the semantics of `ChatOptions.timeoutMs`. */
+  timeoutMs?: number
+}
+
 export interface LLMClient {
   chat(
     model: string,
@@ -223,5 +251,11 @@ export interface LLMClient {
     options?: ChatOptions,
   ): AsyncIterable<UnifiedStreamChunk>
   listModels(): ModelSpec[]
+  /** Discover models from a provider's live model-list endpoint. Bounded by
+   *  `options.timeoutMs` (per docs/protocol.md §6.3 / T3). */
+  listProviderModels(
+    provider: string,
+    options?: ListModelsOptions,
+  ): Promise<ProviderModelInfo[]>
   getModelInfo(model: string): ModelSpec | undefined
 }

@@ -140,8 +140,12 @@ class AnthropicPlugin(LLMPlugin):
         finally:
             await events.aclose()
 
-    async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
-        status, body = await self._request("GET", "/v1/models", None, config, None)
+    async def list_models(
+        self,
+        config: ProviderConfig,
+        context: ChatContext | None = None,
+    ) -> list[ProviderModelInfo]:
+        status, body = await self._request("GET", "/v1/models", None, config, context)
         data = self._parse_json(status, body)
         return [
             ProviderModelInfo(

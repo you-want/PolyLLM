@@ -1,4 +1,4 @@
-import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
+import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ListContext, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
 import { geminiModels } from './models.js'
 import {
   buildGeminiRequestBody,
@@ -40,11 +40,11 @@ export const geminiPlugin: LLMPlugin = {
       maxOutput: 8192,
     }
   },
-  async listModels(config: ProviderConfig) {
+  async listModels(config: ProviderConfig, context: ListContext = {}) {
     const runtime = resolveProviderRuntime('gemini', config)
     const headers = { 'content-type': 'application/json', 'x-goog-api-key': runtime.apiKey, ...runtime.headers }
     const baseUrl = runtime.baseUrl || DEFAULT_BASE_URL
-    return providerJSON('gemini', `${baseUrl.replace(/\/$/, '')}/models`, { headers }, {}, parseGeminiModelsResponse)
+    return providerJSON('gemini', `${baseUrl.replace(/\/$/, '')}/models`, { headers }, context, parseGeminiModelsResponse)
   },
   async chat(request: UnifiedRequest, config: ProviderConfig, context: ChatContext): Promise<UnifiedResponse> {
     const runtime = resolveProviderRuntime('gemini', config)

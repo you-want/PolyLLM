@@ -1,4 +1,4 @@
-import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ProviderModelInfo, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
+import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ListContext, type ProviderModelInfo, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
 import {
   buildOpenAIRequestBody,
   parseOpenAIResponse,
@@ -58,10 +58,10 @@ export const ollamaPlugin: LLMPlugin = {
       maxOutput: 4096,
     }
   },
-  async listModels(config: ProviderConfig) {
+  async listModels(config: ProviderConfig, context: ListContext = {}) {
     const baseUrl = resolveBaseUrl(config)
     const headers = { 'content-type': 'application/json', ...resolveHeaders(config) }
-    return providerJSON('ollama', `${baseUrl.replace(/\/$/, '')}/api/tags`, { headers }, {}, parseOllamaTagsResponse, [config.apiKey ?? ''])
+    return providerJSON('ollama', `${baseUrl.replace(/\/$/, '')}/api/tags`, { headers }, context, parseOllamaTagsResponse, [config.apiKey ?? ''])
   },
   async chat(request: UnifiedRequest, config: ProviderConfig, context: ChatContext): Promise<UnifiedResponse> {
     const baseUrl = resolveBaseUrl(config)

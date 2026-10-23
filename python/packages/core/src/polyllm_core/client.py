@@ -17,6 +17,7 @@ from .types import (
     LLMPlugin,
     ModelSpec,
     ProviderConfig,
+    ProviderModelInfo,
     UnifiedContentPart,
     UnifiedMessage,
     UnifiedRequest,
@@ -139,6 +140,21 @@ class PolyLLM(LLMClient):
 
     def list_models(self) -> list[ModelSpec]:
         return self._registry.list()
+
+    async def list_provider_models(
+        self,
+        provider: str,
+        *,
+        timeout_ms: int | None = None,
+    ) -> list[ProviderModelInfo]:
+        """Live model discovery for a provider's ``/models`` endpoint, bounded
+        by ``timeout_ms`` (docs/protocol.md §6.3 / T3)."""
+        plugin = self._plugins.get(provider)
+        if plugin is None:
+            raise PolyLLMError("UNKNOWN_MODEL", f"未知供应商: {provider}", {"provider": provider})
+        config = self._config.providers[provider]
+        context = ChatContext(model=plugin.models[0], timeout_ms=timeout_ms)
+        return await plugin.list_models(config, context)
 
     def get_model_info(self, model: str) -> ModelSpec | None:
         try:

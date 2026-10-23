@@ -1,4 +1,4 @@
-import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
+import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ListContext, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
 import { deepSeekModels } from './models.js'
 import {
   buildDeepSeekRequestBody,
@@ -37,11 +37,11 @@ export const deepSeekPlugin: LLMPlugin = {
       maxOutput: 4096,
     }
   },
-  async listModels(config: ProviderConfig) {
+  async listModels(config: ProviderConfig, context: ListContext = {}) {
     const runtime = resolveProviderRuntime('deepseek', config)
     const headers = { 'content-type': 'application/json', authorization: `Bearer ${runtime.apiKey}`, ...runtime.headers }
     const baseUrl = runtime.baseUrl || DEFAULT_BASE_URL
-    return providerJSON('deepseek', `${baseUrl.replace(/\/$/, '')}/models`, { headers }, {}, parseDeepSeekModelsResponse)
+    return providerJSON('deepseek', `${baseUrl.replace(/\/$/, '')}/models`, { headers }, context, parseDeepSeekModelsResponse)
   },
   async chat(request: UnifiedRequest, config: ProviderConfig, context: ChatContext): Promise<UnifiedResponse> {
     const runtime = resolveProviderRuntime('deepseek', config)

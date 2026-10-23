@@ -1,6 +1,6 @@
 import type { Connect, Plugin } from 'vite'
 import { createStudioPluginRegistry } from '@you-want/polyllm-studio'
-import type { ChatContext, ProviderConfig, UnifiedRequest } from '@you-want/polyllm-core'
+import type { ChatContext, ListContext, ProviderConfig, UnifiedRequest } from '@you-want/polyllm-core'
 
 const plugins = createStudioPluginRegistry()
 
@@ -27,7 +27,8 @@ async function handleModels(body: string, providerId: string): Promise<Response>
   if (!plugin?.listModels) return json({ error: `供应商 ${providerId} 不支持获取模型列表` }, 404)
   try {
     const config = JSON.parse(body) as ProviderConfig
-    const models = await plugin.listModels(config)
+    const context: ListContext = { timeoutMs: 15_000 }
+    const models = await plugin.listModels(config, context)
     return json({ models })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

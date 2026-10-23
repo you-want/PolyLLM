@@ -1,16 +1,19 @@
 import { PolyLLMError, providerError, providerHttpError, providerTransportError } from './errors.js'
 import { validateRetryPolicy, withRetries } from './retry.js'
-import type { ChatContext } from './types.js'
+import type { ChatContext, ListContext } from './types.js'
+
+type TransportContext = Partial<ChatContext> | ListContext
 
 /** A single deadline covers headers, body, backoff and every retry. */
-function lifecycle(context: Partial<ChatContext>) {
-  validateRetryPolicy(context.retries)
-  if (context.timeoutMs !== undefined && (!Number.isSafeInteger(context.timeoutMs) || context.timeoutMs <= 0)) throw new PolyLLMError('INVALID_CONFIG', 'timeoutMs 必须是正整数（毫秒）')
+function lifecycle(context: TransportContext) {
+  const { retries, timeoutMs, signal } = context as Partial<ChatContext>
+  validateRetryPolicy(retries)
+  if (timeoutMs !== undefined && (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0)) throw new PolyLLMError('INVALID_CONFIG', 'timeoutMs 必须是正整数（毫秒）')
   const controller = new AbortController()
   const timeoutController = new AbortController()
-  const timer = context.timeoutMs === undefined ? undefined : setTimeout(() => timeoutController.abort(new DOMException('Timeout', 'TimeoutError')), context.timeoutMs)
-  const timeout = context.timeoutMs === undefined ? undefined : timeoutController.signal
-  const signals = [controller.signal, context.signal, timeout].filter((s): s is AbortSignal => !!s)
+  const timer = timeoutMs === undefined ? undefined : setTimeout(() => timeoutController.abort(new DOMException('Timeout', 'TimeoutError')), timeoutMs)
+  const timeout = timeoutMs === undefined ? undefined : timeoutController.signal
+  const signals = [controller.signal, signal, timeout].filter((s): s is AbortSignal => !!s)
   return { timeout, signal: AbortSignal.any(signals), close() { clearTimeout(timer); controller.abort() } }
 }
 
@@ -24,7 +27,7 @@ function secrets(init: RequestInit): string[] {
   return values
 }
 
-function failure(provider: string, error: unknown, context: Partial<ChatContext>, timeout?: AbortSignal) {
+function failure(provider: string, error: unknown, context: TransportContext, timeout?: AbortSignal) {
   if (error instanceof PolyLLMError) return error
   if (context.signal?.aborted || timeout?.aborted) {
     return providerTransportError(provider, error, provider, context.signal, context.timeoutMs, timeout)
@@ -48,7 +51,7 @@ async function checkedFetch(provider: string, url: string, init: RequestInit, si
 
 export async function providerJSON<T>(
   provider: string, url: string, init: RequestInit,
-  context: Partial<ChatContext>, parse: (data: Record<string, unknown>) => T, knownSecrets: readonly string[] = [],
+  context: Partial<ChatContext> | ListContext, parse: (data: Record<string, unknown>) => T, knownSecrets: readonly string[] = [],
 ): Promise<T> {
   const life = lifecycle(context)
   try {
@@ -69,7 +72,7 @@ export async function providerJSON<T>(
           throw providerError(provider, response.status, 'parse', `${provider}: 响应解析失败`)
         }
       } catch (error) { throw failure(provider, error, context, life.timeout) }
-    }, { policy: context.retries, signal: life.signal, deadlineMs: context.timeoutMs })
+    }, { policy: (context as Partial<ChatContext>).retries, signal: life.signal, deadlineMs: (context as Partial<ChatContext>).timeoutMs })
     return result
   } catch (error) { throw failure(provider, error, context, life.timeout) }
   finally { life.close() }
@@ -173,7 +176,7 @@ export async function* providerStream<T>(
         await events?.return(undefined)
         throw failure(provider, error, context, life.timeout)
       }
-    }, { policy: context.retries, signal: life.signal, deadlineMs: context.timeoutMs })
+    }, { policy: (context as Partial<ChatContext>).retries, signal: life.signal, deadlineMs: (context as Partial<ChatContext>).timeoutMs })
     for (const chunk of first) yield chunk
     if (ended) return
     if (events) for await (const event of events) {

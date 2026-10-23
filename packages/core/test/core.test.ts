@@ -133,3 +133,61 @@ describe('parameter validation', () => {
     expect(response.model).toBe('remote-only-model')
   })
 })
+
+describe('listProviderModels (T3 unified timeout)', () => {
+  function createDiscoveryPlugin(provider = 'test', withDiscovery = true): LLMPlugin {
+    const plugin: LLMPlugin = {
+      ...createPlugin(provider),
+      chat: async () => {
+        throw new PolyLLMError('UNSUPPORTED_PARAMETER', 'chat not used in discovery test')
+      },
+    }
+    if (withDiscovery) {
+      let lastContext: { timeoutMs?: number } | undefined
+      plugin.listModels = async (_config, context) => {
+        lastContext = context
+        ;(plugin as unknown as { __lastContext?: unknown }).__lastContext = lastContext
+        return [{ id: 'discovered-1' }]
+      }
+    }
+    return plugin
+  }
+
+  it('forwards timeoutMs to the plugin discovery context', async () => {
+    const plugin = createDiscoveryPlugin()
+    const llm = createLLM({
+      plugins: [plugin],
+      providers: { test: { apiKey: 'k' } },
+    })
+    const models = await llm.listProviderModels('test', { timeoutMs: 5000 })
+    expect(models).toEqual([{ id: 'discovered-1' }])
+    expect((plugin as unknown as { __lastContext?: { timeoutMs?: number } }).__lastContext?.timeoutMs).toBe(5000)
+  })
+
+  it('omits timeoutMs from context when not provided', async () => {
+    const plugin = createDiscoveryPlugin()
+    const llm = createLLM({
+      plugins: [plugin],
+      providers: { test: { apiKey: 'k' } },
+    })
+    await llm.listProviderModels('test')
+    expect((plugin as unknown as { __lastContext?: { timeoutMs?: number } }).__lastContext?.timeoutMs).toBeUndefined()
+  })
+
+  it('throws UNSUPPORTED_PARAMETER when the plugin has no discovery', async () => {
+    const plugin = createDiscoveryPlugin('test', false)
+    const llm = createLLM({
+      plugins: [plugin],
+      providers: { test: { apiKey: 'k' } },
+    })
+    await expect(llm.listProviderModels('test')).rejects.toThrow('不支持模型发现')
+  })
+
+  it('throws for unknown providers', async () => {
+    const llm = createLLM({
+      plugins: [createDiscoveryPlugin()],
+      providers: { test: { apiKey: 'k' } },
+    })
+    await expect(llm.listProviderModels('nope')).rejects.toThrow('未知供应商')
+  })
+})

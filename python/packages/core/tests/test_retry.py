@@ -201,3 +201,63 @@ class _SlowRequestHandler(http.server.BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ListProviderModelsTests(unittest.IsolatedAsyncioTestCase):
+    """T3: list_provider_models wires timeout_ms into the plugin context."""
+
+    def _client(self, plugin, provider="p1"):
+        from polyllm_core import ClientConfig, PolyLLM
+        cfg = ClientConfig(plugins=[plugin], providers={provider: {}})
+        return PolyLLM(cfg)
+
+    async def test_timeout_ms_forwarded_to_plugin_context(self):
+        from polyllm_core.types import ChatContext, LLMPlugin, ModelSpec, ProviderModelInfo
+
+        seen: list[ChatContext | None] = []
+
+        class P(LLMPlugin):
+            provider = "p1"
+            models = (ModelSpec(
+                id="m", provider="p1",
+                capabilities={"streaming": False, "vision": False, "functionCalling": False, "jsonMode": False, "systemPrompt": True},
+                context_window=4096, max_output=1024,
+            ),)
+
+            async def chat(self, request, config, context):
+                raise NotImplementedError
+
+            async def list_models(self, config, context=None):
+                seen.append(context)
+                return [ProviderModelInfo(id="discovered-1")]
+
+        llm = self._client(P(), "p1")
+        result = await llm.list_provider_models("p1", timeout_ms=4321)
+        self.assertEqual([m.id for m in result], ["discovered-1"])
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0].timeout_ms, 4321)
+
+    async def test_no_timeout_means_none(self):
+        from polyllm_core.types import ChatContext, LLMPlugin, ModelSpec, ProviderModelInfo
+
+        seen: list[ChatContext | None] = []
+
+        class P2(LLMPlugin):
+            provider = "p2"
+            models = (ModelSpec(
+                id="m", provider="p2",
+                capabilities={"streaming": False, "vision": False, "functionCalling": False, "jsonMode": False, "systemPrompt": True},
+                context_window=4096, max_output=1024,
+            ),)
+
+            async def chat(self, request, config, context):
+                raise NotImplementedError
+
+            async def list_models(self, config, context=None):
+                seen.append(context)
+                return []
+
+        llm = self._client(P2(), "p2")
+        await llm.list_provider_models("p2")
+        self.assertIsNotNone(seen[0])
+        self.assertIsNone(seen[0].timeout_ms)

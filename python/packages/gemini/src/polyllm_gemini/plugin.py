@@ -161,11 +161,15 @@ class GeminiPlugin(LLMPlugin):
         finally:
             await events.aclose()
 
-    async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
+    async def list_models(
+        self,
+        config: ProviderConfig,
+        context: ChatContext | None = None,
+    ) -> list[ProviderModelInfo]:
         runtime = resolve_provider_runtime(self.provider, config)
         base_url = (runtime.base_url or DEFAULT_BASE_URL).rstrip("/")
         url = f"{base_url}/models"
-        status, body = await self._request("GET", url, None, runtime, None)
+        status, body = await self._request("GET", url, None, runtime, context)
         data = self._parse_json(status, body)
         return [
             ProviderModelInfo(

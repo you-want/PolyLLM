@@ -199,7 +199,14 @@ class LLMPlugin(ABC):
     ) -> AsyncIterator[UnifiedStreamChunk]:
         raise NotImplementedError
 
-    async def list_models(self, config: ProviderConfig) -> list[ProviderModelInfo]:
+    async def list_models(
+        self,
+        config: ProviderConfig,
+        context: Optional[ChatContext] = None,
+    ) -> list[ProviderModelInfo]:
+        """Live model discovery. ``context`` bounds the call with
+        ``timeout_ms`` (docs/protocol.md §6.3 / T3). Optional; providers
+        without a discovery endpoint may omit it."""
         raise NotImplementedError
 
     def create_model_spec(self, model_id: str) -> ModelSpec:
@@ -240,3 +247,16 @@ class LLMClient(ABC):
     @abstractmethod
     def get_model_info(self, model: str) -> Optional[ModelSpec]:
         raise NotImplementedError
+
+    async def list_provider_models(
+        self,
+        provider: str,
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> list[ProviderModelInfo]:
+        """Discover models from a provider's live endpoint, bounded by
+        ``timeout_ms`` (docs/protocol.md §6.3 / T3). The default implementation
+        raises; concrete clients should override with their plugin map."""
+        raise NotImplementedError(
+            "list_provider_models is not implemented by this client"
+        )

@@ -1,4 +1,4 @@
-import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
+import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ListContext, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
 import { anthropicModels } from './models.js'
 import {
   buildAnthropicRequestBody,
@@ -38,11 +38,11 @@ export const anthropicPlugin: LLMPlugin = {
       maxOutput: 4096,
     }
   },
-  async listModels(config: ProviderConfig) {
+  async listModels(config: ProviderConfig, context: ListContext = {}) {
     const runtime = resolveProviderRuntime('anthropic', config)
     const headers = { 'content-type': 'application/json', 'x-api-key': runtime.apiKey, 'anthropic-version': '2023-06-01', ...runtime.headers }
     const baseUrl = runtime.baseUrl || DEFAULT_BASE_URL
-    return providerJSON('anthropic', `${baseUrl.replace(/\/$/, '')}/models`, { headers }, {}, parseAnthropicModelsResponse)
+    return providerJSON('anthropic', `${baseUrl.replace(/\/$/, '')}/models`, { headers }, context, parseAnthropicModelsResponse)
   },
   async chat(request: UnifiedRequest, config: ProviderConfig, context: ChatContext): Promise<UnifiedResponse> {
     const runtime = resolveProviderRuntime('anthropic', config)

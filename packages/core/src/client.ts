@@ -6,7 +6,10 @@ import type {
   ClientConfig,
   LLMClient,
   LLMPlugin,
+  ListContext,
+  ListModelsOptions,
   ModelSpec,
+  ProviderModelInfo,
   UnifiedRequest,
   UnifiedResponse,
   UnifiedStreamChunk,
@@ -70,6 +73,19 @@ export class PolyLLM implements LLMClient {
 
   listModels(): ModelSpec[] {
     return this.registry.list()
+  }
+
+  async listProviderModels(provider: string, options: ListModelsOptions = {}): Promise<ProviderModelInfo[]> {
+    const plugin = this.plugins.get(provider)
+    if (!plugin) {
+      throw new PolyLLMError('UNKNOWN_MODEL', `未知供应商: ${provider}`, { provider })
+    }
+    if (!plugin.listModels) {
+      throw new PolyLLMError('UNSUPPORTED_PARAMETER', `供应商 ${provider} 不支持模型发现`, { provider })
+    }
+    const config = this.config.providers[provider]
+    const context: ListContext = { timeoutMs: options.timeoutMs }
+    return plugin.listModels(config, context)
   }
 
   getModelInfo(model: string): ModelSpec | undefined {

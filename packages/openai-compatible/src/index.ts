@@ -1,4 +1,4 @@
-import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
+import { providerJSON, providerStream, resolveProviderRuntime, PolyLLMError, type ChatContext, type JsonRecord, type LLMPlugin, type ListContext, type ProviderConfig, type ModelSpec, type UnifiedRequest, type UnifiedResponse, type UnifiedStreamChunk } from '@you-want/polyllm-core'
 import {
   buildOpenAIRequestBody,
   parseOpenAIModelsResponse,
@@ -39,11 +39,11 @@ export const openAICompatiblePlugin: LLMPlugin = {
       maxOutput: 4096,
     }
   },
-  async listModels(config: ProviderConfig) {
+  async listModels(config: ProviderConfig, context: ListContext = {}) {
     const runtime = resolveProviderRuntime('openai-compatible', config)
     const headers = { 'content-type': 'application/json', authorization: `Bearer ${runtime.apiKey}`, ...runtime.headers }
     const baseUrl = runtime.baseUrl
-    return providerJSON('openai-compatible', endpoint(baseUrl, '/models'), { headers }, {}, parseOpenAIModelsResponse)
+    return providerJSON('openai-compatible', endpoint(baseUrl, '/models'), { headers }, context, parseOpenAIModelsResponse)
   },
   async chat(request: UnifiedRequest, config: ProviderConfig, context: ChatContext): Promise<UnifiedResponse> {
     const runtime = resolveProviderRuntime('openai-compatible', config)
