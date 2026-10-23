@@ -48,20 +48,26 @@ def validate_and_map_params(
 
     stream = request.stream
     if stream and not model.capabilities.streaming:
-        stream = unsupported("stream", "该模型不支持流式输出")
+        unsupported("stream", "该模型不支持流式输出")
+        stream = False
 
     json_mode = request.json_mode
     if json_mode and not model.capabilities.json_mode:
-        json_mode = unsupported("jsonMode", "该模型不支持 JSON mode")
+        unsupported("jsonMode", "该模型不支持 JSON mode")
+        json_mode = False
 
+    # T2 (0.5.1): mirror TS params.ts — non-strict policies record a warning
+    # AND clear the request field so the wire payload never carries an
+    # unsupported capability. Strict raises the stable error instead.
     tools = list(request.tools)
     if tools and not model.capabilities.function_calling:
-        tools = [] if unsupported("tools", "该模型不支持 function calling") else tools
+        unsupported("tools", "该模型不支持 function calling")
+        tools = []
 
     messages = list(request.messages)
     if not model.capabilities.system_prompt and any(message.role == "system" for message in messages):
-        keep_system = unsupported("messages[role=system]", "该模型不支持 system prompt")
-        messages = [message for message in messages if keep_system or message.role != "system"]
+        unsupported("messages[role=system]", "该模型不支持 system prompt")
+        messages = [message for message in messages if message.role != "system"]
 
     if not model.capabilities.vision:
         has_image = any(
@@ -69,13 +75,13 @@ def validate_and_map_params(
             for message in messages
         )
         if has_image:
-            keep_images = unsupported("messages[content=image_url]", "该模型不支持视觉输入")
-            messages = [
-                message
-                if isinstance(message.content, str) or keep_images
-                else replace(message, content=[part for part in message.content if part.type != "image_url"])
-                for message in messages
-            ]
+            unsupported("messages[content=image_url]", "该模型不支持视觉输入")
+        messages = [
+            message
+            if isinstance(message.content, str)
+            else replace(message, content=[part for part in message.content if part.type != "image_url"])
+            for message in messages
+        ]
 
     temperature = request.temperature
     temperature_range = model.params.get("temperature")

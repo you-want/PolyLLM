@@ -30,9 +30,10 @@ export interface GeminiTurn {
 export interface GeminiWireRequest {
   contents: GeminiTurn[]
   systemInstruction?: { parts: GeminiContentPart[] }
-  temperature?: number
-  topP?: number
-  maxOutputTokens?: number
+  /** Gemini REST API requires sampling parameters nested under `generationConfig`
+   * (ai.google.dev/api/generate-content); top-level `temperature`/`topP`/
+   * `maxOutputTokens` fields are not part of the documented wire format. */
+  generationConfig?: { temperature?: number; topP?: number; maxOutputTokens?: number }
   tools?: { functionDeclarations: { name: string; description?: string; parameters?: JsonRecord }[] }[]
 }
 
@@ -198,9 +199,11 @@ export function buildGeminiRequestBody(request: UnifiedRequest, context: ChatCon
 
   const body: GeminiWireRequest = { contents }
   if (systemParts.length) body.systemInstruction = { parts: systemParts }
-  if (request.temperature !== undefined) body.temperature = request.temperature
-  if (request.topP !== undefined) body.topP = request.topP
-  if (request.maxTokens !== undefined) body.maxOutputTokens = request.maxTokens
+  const generationConfig: GeminiWireRequest['generationConfig'] = {}
+  if (request.temperature !== undefined) generationConfig.temperature = request.temperature
+  if (request.topP !== undefined) generationConfig.topP = request.topP
+  if (request.maxTokens !== undefined) generationConfig.maxOutputTokens = request.maxTokens
+  if (Object.keys(generationConfig).length) body.generationConfig = generationConfig
   if (request.tools?.length) {
     body.tools = [
       {

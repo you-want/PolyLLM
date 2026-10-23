@@ -9,6 +9,10 @@ const mutations = [
   ['stream-framing.json', c => c.id === 'sse-lf-split-event', c => { c.expectedChunks = [{ broken: true }] }],
   ['errors-timeout.json', c => c.id === 'http-401-auth', c => { c.error.category = 'server' }],
   ['models.json', c => c.id === 'aliased-model-resolves-to-canonical', c => { c.expectations.resolvedId = 'incorrect:model' }],
+  // 0.5.1 T2: a policy that "warns but still sends" the unsupported capability must
+  // be caught. Corrupt the expectation to accept a non-empty tool list in the
+  // auto-policy drop case.
+  ['param-policy.json', c => c.id === 'policy-auto-drops-unsupported-tools', c => { c.expectations.toolCount = 1 }],
 ]
 let checks = 0
 for (const [file, select, mutate] of mutations) {

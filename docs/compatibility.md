@@ -33,9 +33,11 @@
 
 - **工具调用**：覆盖 工具定义 → 模型调用 → 工具结果回传 的完整对话，以及流式
   参数拼接；**不**包含自动工具执行（0.4.0 边界）。
-- **图片输入**：协议目前只有 `image_url`（URL 或 data URL）。Gemini 在 P1 评估
-  base64 前继续声明 `vision=false`；Anthropic 已实现 `image_url` → `image/source.url`
-  映射。远程 URL 不会被 Core 下载。
+- **图片输入**：协议 `image_url` 支持 `data:` URL（base64）与远程 URL 两种形式。
+  0.5.0 起 Gemini 通过 `inlineData` 映射 base64 图片（媒体类型白名单
+  `image/png` / `image/jpeg` / `image/webp` / `image/heic` / `image/heif`，单张 20 MiB），
+  `vision=true` 模型会接受 `data:` URL，远程 URL 仍拒绝（SSRF 边界）。
+  OpenAI / Anthropic / OpenAI-compatible 将 `image_url` 透传给上游。远程 URL 不会被 Core 下载。
 - **JSON Mode**：指 JSON 对象输出语义，不等于所有供应商支持严格 JSON Schema 输出。
   不支持的模型按参数策略拒绝并明确报错（`UNSUPPORTED_PARAMETER`），不静默伪装成功。
 - **OpenAI-compatible 预设**（OpenRouter / Qwen / Moonshot / Groq / vLLM / LiteLLM）：

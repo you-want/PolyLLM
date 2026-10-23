@@ -1,0 +1,80 @@
+{
+  "description": "Scenario group 8 (0.5.1 T2): param-policy consistency. For a model without function calling, strict rejects with a stable error; auto/lenient drop the unsupported capability from the wire payload and record a warning, matching TS params.ts. Regression: mutation check rejects 'warned but still sent' (docs/protocol.md §5).",
+  "schema": "schemas/unified-request.json",
+  "cases": [
+    {
+      "id": "policy-strict-rejects-unsupported-tools",
+      "valid": true,
+      "paramPolicy": "strict",
+      "request": {
+        "model": "custom-gateway:frontier-x",
+        "messages": [{ "role": "user", "content": "hi" }],
+        "tools": [
+          {
+            "type": "function",
+            "function": { "name": "get_weather", "description": "查天气", "parameters": { "type": "object", "properties": { "city": { "type": "string" } } } }
+          }
+        ]
+      },
+      "error": {
+        "code": "UNSUPPORTED_PARAMETER",
+        "parameter": "tools"
+      }
+    },
+    {
+      "id": "policy-auto-drops-unsupported-tools",
+      "valid": true,
+      "paramPolicy": "auto",
+      "request": {
+        "model": "custom-gateway:frontier-x",
+        "messages": [{ "role": "user", "content": "hi" }],
+        "tools": [
+          {
+            "type": "function",
+            "function": { "name": "get_weather", "description": "查天气", "parameters": { "type": "object", "properties": { "city": { "type": "string" } } } }
+          }
+        ]
+      },
+      "expectations": {
+        "toolCount": 0
+      }
+    },
+    {
+      "id": "policy-lenient-drops-unsupported-tools",
+      "valid": true,
+      "paramPolicy": "lenient",
+      "request": {
+        "model": "custom-gateway:frontier-x",
+        "messages": [{ "role": "user", "content": "hi" }],
+        "tools": [
+          {
+            "type": "function",
+            "function": { "name": "get_weather", "description": "查天气", "parameters": { "type": "object", "properties": { "city": { "type": "string" } } } }
+          }
+        ]
+      },
+      "expectations": {
+        "toolCount": 0
+      }
+    },
+    {
+      "id": "policy-supported-tools-pass-through",
+      "valid": true,
+      "paramPolicy": "strict",
+      "request": {
+        "model": "openai:gpt-4o-mini",
+        "messages": [{ "role": "user", "content": "hi" }],
+        "tools": [
+          {
+            "type": "function",
+            "function": { "name": "get_weather", "description": "查天气", "parameters": { "type": "object", "properties": { "city": { "type": "string" } } } }
+          }
+        ]
+      },
+      "expectations": {
+        "toolCount": 1,
+        "toolName": "get_weather"
+      }
+    }
+  ]
+}

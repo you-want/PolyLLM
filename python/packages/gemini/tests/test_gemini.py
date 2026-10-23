@@ -51,8 +51,34 @@ class GeminiTests(unittest.TestCase):
         self.assertEqual(calls[0][0], "POST")
         body = calls[0][3]
         self.assertEqual(body["systemInstruction"], {"parts": [{"text": "你是助手"}]})
-        self.assertEqual(body["maxOutputTokens"], 512)
+        self.assertEqual(body["generationConfig"], {"temperature": 0.5, "maxOutputTokens": 512})
+        self.assertNotIn("temperature", body)
+        self.assertNotIn("maxOutputTokens", body)
         self.assertTrue(calls[0][1].endswith(":generateContent"))
+
+    def test_chat_omits_generation_config_when_no_sampling_params(self):
+        def transport(method, url, headers, payload, timeout):
+            return 200, json.dumps(
+                {"candidates": [{"content": {"parts": [{"text": "ok"}]}, "finishReason": "STOP"}]}
+            )
+
+        plugin = GeminiPlugin(transport)
+        call = []
+
+        def transport2(method, url, headers, payload, timeout):
+            call.append(payload)
+            return transport(method, url, headers, payload, timeout)
+
+        plugin2 = GeminiPlugin(transport2)
+        asyncio.run(
+            plugin2.chat(
+                UnifiedRequest(model="gemini-2.5-flash", messages=[UnifiedMessage(role="user", content="hi")]),
+                ProviderConfig(api_key="k"),
+                ChatContext(model=plugin2.models[0]),
+            )
+        )
+        self.assertNotIn("generationConfig", call[0])
+
 
     def test_list_models_uses_get_and_strips_resource_prefix(self):
         def transport(method, url, headers, payload, timeout):

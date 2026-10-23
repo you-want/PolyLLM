@@ -34,9 +34,41 @@ describe('Gemini wire protocol', () => {
     )
     expect(body.systemInstruction).toEqual({ parts: [{ text: '你是助手' }] })
     expect(body.contents).toEqual([{ role: 'user', parts: [{ text: '你好' }] }])
-    expect(body.temperature).toBe(0.5)
-    expect(body.maxOutputTokens).toBe(512)
+    expect(body.generationConfig).toEqual({ temperature: 0.5, maxOutputTokens: 512 })
+    expect(body).not.toHaveProperty('temperature')
+    expect(body).not.toHaveProperty('maxOutputTokens')
     expect(body.tools?.[0].functionDeclarations?.[0].name).toBe('get_weather')
+  })
+
+  it('omits generationConfig when no sampling params are set', () => {
+    const body = buildGeminiRequestBody(
+      {
+        model: 'gemini-2.5-flash',
+        messages: [{ role: 'user', content: 'hi' }],
+      },
+      context,
+    )
+    expect(body).not.toHaveProperty('generationConfig')
+  })
+
+  it('nest each sampling param independently under generationConfig', () => {
+    const tempOnly = buildGeminiRequestBody(
+      { model: 'gemini-2.5-flash', messages: [{ role: 'user', content: 'hi' }], temperature: 0.1 },
+      context,
+    )
+    expect(tempOnly.generationConfig).toEqual({ temperature: 0.1 })
+
+    const topPOnly = buildGeminiRequestBody(
+      { model: 'gemini-2.5-flash', messages: [{ role: 'user', content: 'hi' }], topP: 0.9 },
+      context,
+    )
+    expect(topPOnly.generationConfig).toEqual({ topP: 0.9 })
+
+    const maxTokensOnly = buildGeminiRequestBody(
+      { model: 'gemini-2.5-flash', messages: [{ role: 'user', content: 'hi' }], maxTokens: 1 },
+      context,
+    )
+    expect(maxTokensOnly.generationConfig).toEqual({ maxOutputTokens: 1 })
   })
 
   it('maps assistant tool calls back to functionCall parts', () => {

@@ -71,7 +71,8 @@ async function execute(c) {
   }
   const custom = { ...openAICompatiblePlugin, provider: 'custom-gateway', createModelSpec(id) { return { ...openAICompatiblePlugin.createModelSpec(id), provider: 'custom-gateway' } } }
   const plugins = [openAIPlugin, geminiPlugin, custom]
-  const llm = createLLM({ plugins, providers: Object.fromEntries(plugins.map(p => [p.provider, { apiKey: 'fixture-key', baseUrl: 'https://fixture.invalid/v1' }])), allowUnlistedModels: c.id === 'dynamic-model-conservative-capabilities' || c.id === 'capability-refusal-vision-on-non-vision-model' })
+  const needsUnlisted = c.id === 'dynamic-model-conservative-capabilities' || c.id === 'capability-refusal-vision-on-non-vision-model' || c.id.startsWith('policy-')
+  const llm = createLLM({ plugins, providers: Object.fromEntries(plugins.map(p => [p.provider, { apiKey: 'fixture-key', baseUrl: 'https://fixture.invalid/v1' }])), allowUnlistedModels: needsUnlisted, paramPolicy: c.paramPolicy ?? 'strict' })
   try {
     if (c.request) {
       const { model, ...payload } = c.request
@@ -114,7 +115,7 @@ function check(c, actual) {
     messagesCount: wire.messages?.length,
     userContentParts: wire.messages?.find(m => m.role === 'user')?.content?.length,
     toolMessageHasToolCallId: wire.messages?.some(m => m.role === 'tool' && !!m.tool_call_id),
-    toolCount: wire.tools?.length, toolName: wire.tools?.[0]?.function?.name,
+    toolCount: wire.tools?.length ?? 0, toolName: wire.tools?.[0]?.function?.name,
     hasToolResult: wire.messages?.some(m => m.role === 'tool' && !!m.tool_call_id),
     responseFormat: wire.response_format?.type ?? null,
     resolvedId: actual.resolvedId,

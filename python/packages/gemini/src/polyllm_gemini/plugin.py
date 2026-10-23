@@ -289,12 +289,15 @@ class GeminiPlugin(LLMPlugin):
         body: dict[str, Any] = {"contents": contents}
         if system_parts:
             body["systemInstruction"] = {"parts": system_parts}
+        generation_config: dict[str, Any] = {}
         if request.temperature is not None:
-            body["temperature"] = request.temperature
+            generation_config["temperature"] = request.temperature
         if request.top_p is not None:
-            body["topP"] = request.top_p
+            generation_config["topP"] = request.top_p
         if request.max_tokens is not None:
-            body["maxOutputTokens"] = request.max_tokens
+            generation_config["maxOutputTokens"] = request.max_tokens
+        if generation_config:
+            body["generationConfig"] = generation_config
         if request.tools:
             body["tools"] = [
                 {

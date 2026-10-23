@@ -1,6 +1,6 @@
 {
   "name": "@you-want/polyllm-cli",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "description": "PolyLLM project initialization and configuration CLI.",
   "license": "MIT",

@@ -110,10 +110,18 @@ promptTokens, completionTokens, totalTokens: number（camelCase JSON；Python �
 
 ## 5. 参数策略与拒绝语义
 
-- `paramPolicy`：`strict`（默认）越界即抛 `UNSUPPORTED_PARAMETER`；`lenient` 钳制到 `[min, max]`；`auto` 缺失且能力允许时用 `default` 补齐，越界仍报错。
-- 能力拒绝：请求使用了 `ModelCapabilities` 声明为 `false` 的能力（如对 `vision=false` 的模型传 `image_url` part，对 `jsonMode=false` 的模型设 `jsonMode=true`）：
-  - 0.4.0 行为：插件抛 `UNSUPPORTED_PARAMETER`，`details` 含 `parameter`（如 `messages[content=image_url]`），**不静默丢弃、不伪装成功**。
-  - 兼容性：0.3.0 中部分插件对不支撑能力静默忽略；升级为报错属于破坏性变化，列入迁移指南（§8 D6）。
+- `paramPolicy` 三个取值对**数值参数越界**（`temperature` / `topP` / `maxTokens` 超出 `ModelSpec.params` 的 `[min, max]`）与**能力拒绝**（使用 `ModelCapabilities` 声明为 `false` 的能力）的处理：
+
+  | 策略 | 数值越界 | 能力拒绝 |
+  | --- | --- | --- |
+  | `strict`（默认） | 抛 `UNSUPPORTED_PARAMETER`，`details` 含 `parameter` / `value` / `min` / `max` | 抛 `UNSUPPORTED_PARAMETER`，`details.parameter` 指明不支持的字段 |
+  | `auto` | 钳制到 `[min, max]` 并记录 warning | 从请求中移除该字段、记录 warning，**不再向 wire 发送** |
+  | `lenient` | 越界取 `min`（数值）或忽略该参数，记录 warning | 同 `auto`：移除字段 + warning |
+
+  0.5.1 起 `auto` / `lenient` 在能力拒绝路径的行为与 `strict` 一致地**清空**请求字段（tools / image parts / jsonMode / stream / system message），只差别在是否抛错。TS `params.ts` 与 Python `params.py` 行为对齐，共享协议 fixture `param-policy.json` 覆盖三策略的 wire 断言与变异检查。
+
+- 能力拒绝的 `details.parameter` 取值：`stream` / `jsonMode` / `tools` / `messages[role=system]` / `messages[content=image_url]`。
+- 兼容性：0.3.0 中部分插件对不支撑能力静默忽略；0.4.0 升级为 strict 默认报错（§8 D6）；0.5.1 修正 auto/lenient 路径"警告但仍在 wire 中发送"的跨语言不一致。
 
 ## 6. 生命周期：超时与取消
 

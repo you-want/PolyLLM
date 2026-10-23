@@ -1,6 +1,6 @@
 {
   "name": "@you-want/polyllm-core",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "description": "PolyLLM core protocol, registry, resolver, and client.",
   "license": "MIT",
