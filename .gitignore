@@ -21,5 +21,8 @@ python/dist/
 docs/plans/v0.5.1-plan.md
 docs/plans/v0.6.0-*
 
+# npm pack 产物（发布验收临时文件）
+*.tgz
+
 # Rust 构建产物（实验分支）
 rust/target/
