@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "0.1.0-d0",
+  "caseId": "C12",
+  "title": "finish_reason='tool_calls' but tool_calls array absent; arguments leaked into content as plain text",
+  "source": "OpenRouterTeam/ai-sdk-provider#411 (2026-02, fixed v2.6.0): request carried both response_format (json_schema) and tools; model resolved the conflict by emitting tool arguments as text",
+  "evidenceGrade": "reconstructed",
+  "endpointClass": "openai-compatible gateway",
+  "streamProtocol": "sse",
+  "input": {
+    "request": {
+      "model": "gemini-3-pro-preview",
+      "stream": true,
+      "messages": [{ "role": "user", "content": "Find the email for Acme Corp." }],
+      "tools": [
+        {
+          "type": "function",
+          "function": { "name": "lookup_email", "parameters": { "type": "object", "properties": { "email": { "type": "string" } }, "required": ["email"] } }
+        }
+      ],
+      "response_format": { "type": "json_schema", "json_schema": { "name": "email_out", "schema": { "type": "object", "properties": { "email": { "type": "string" } }, "required": ["email"] } } }
+    },
+    "sseEvents": [
+      "data: {\"id\":\"chatcmpl-d0f5\",\"object\":\"chat.completion.chunk\",\"model\":\"gemini-3-pro-preview\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"{\\\"email\\\":\"},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f5\",\"object\":\"chat.completion.chunk\",\"model\":\"gemini-3-pro-preview\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"\\\"a@b.c\\\"}\"},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f5\",\"object\":\"chat.completion.chunk\",\"model\":\"gemini-3-pro-preview\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}",
+      "data: [DONE]"
+    ]
+  },
+  "expected": {
+    "toolCalls": [],
+    "contentText": "{\"email\":\"a@b.c\"}",
+    "finishReason": "tool_calls",
+    "verdict": "malformed-response",
+    "anomalies": [
+      { "code": "UPSTREAM_FINISH_WITHOUT_TOOLCALLS", "layer": "upstream-response", "note": "finish_reason is 'tool_calls' but delta contains no tool_calls entries across the whole stream" },
+      { "code": "NORMALIZATION_ARGS_IN_CONTENT", "layer": "normalization", "note": "content parses as JSON whose shape matches the tool parameter schema of a request tool (lookup_email) — evidence that arguments were emitted as text" },
+      { "code": "REQUEST_FORMAT_TOOL_CONFLICT", "layer": "request-mapping", "note": "request carried both `response_format` and `tools`; several model APIs treat these as conflicting instructions (source-case root cause). Reported as a suspected request-side conflict with evidence, not as a proven cause." }
+    ],
+    "note": "The diagnostic must NOT silently 'recover' by converting content JSON into a tool call — that would mask the conflict. Expected behavior: report malformed-response with the three evidence lines above and leave recovery to the caller. Client-side loops that require tool_calls parts never execute any tool and (as in the source case) the agent's stop condition is never evaluated."
+  },
+  "failureModeIfBuggy": "Output-level evaluation tools pass the response as valid JSON text (false negative — the response IS valid JSON), while the agent loop silently does nothing. Only wire-level inspection distinguishes 'model answered in JSON' from 'tool call was consumed by a format conflict'.",
+  "mutationHooks": [
+    "Change finish_reason to 'stop' — anomalies list must become empty and verdict pass, proving the fixture actually keys on the finish_reason/tool_calls contradiction.",
+    "Remove response_format from request — the request-mapping suspicion line must disappear, proving evidence is tied to request content, not hardcoded."
+  ],
+  "specBasis": [
+    "OpenAI Chat Completions: finish_reason 'tool_calls' means the model requests tool execution and `message.tool_calls` is populated; content and tool_calls are distinct output channels.",
+    "Source case documents the request-side conflict (response_format + tools) and the fix (omit response_format when tools are present)."
+  ],
+  "desensitized": true,
+  "notes": "Only fixture whose expected verdict is malformed-response: it exercises the diagnostic's request-mapping + upstream-response + normalization layers together, and doubles as the false-negative showcase for the D1 alternatives matrix (promptfoo-style output assertions would pass this response)."
+}

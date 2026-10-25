@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "0.1.0-d0",
+  "caseId": "C02",
+  "title": "Standard continuation deltas without `id` must still be appended (baseline-correct upstream stream)",
+  "source": "litellm#20711 (2026-02): upstream stream was standard; the proxy's iterator skipped id-less chunks (`if not call_id_raw: continue`), silently dropping argument deltas after the first chunk",
+  "evidenceGrade": "reconstructed",
+  "endpointClass": "openai (spec-conformant stream; fault class targets client/proxy accumulators)",
+  "streamProtocol": "sse",
+  "input": {
+    "request": {
+      "model": "gpt-4o-mini",
+      "stream": true,
+      "messages": [{ "role": "user", "content": "Weather in Paris?" }],
+      "tools": [
+        {
+          "type": "function",
+          "function": { "name": "get_weather", "parameters": { "type": "object", "properties": { "city": { "type": "string" } }, "required": ["city"] } }
+        }
+      ]
+    },
+    "sseEvents": [
+      "data: {\"id\":\"chatcmpl-d0f3\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"call_c3d4e5\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f3\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"city\\\":\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f3\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"\\\"Paris\\\"}\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f3\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}",
+      "data: [DONE]"
+    ]
+  },
+  "expected": {
+    "toolCalls": [
+      { "id": "call_c3d4e5", "name": "get_weather", "arguments": "{\"city\":\"Paris\"}" }
+    ],
+    "finishReason": "tool_calls",
+    "verdict": "pass",
+    "anomalies": [],
+    "note": "This is what a correct OpenAI stream looks like: id and name only on the first delta, argument fragments on later deltas keyed by index alone. Any accumulator that requires id on continuation chunks (or skips id-less chunks) fails this baseline — the fault lives in the client/proxy layer, not upstream."
+  },
+  "failureModeIfBuggy": "Source-case proxy dropped fragments after the first chunk: streamed arguments truncated to `{\"lo`, then a completion-time consolidation re-inserted the full arguments as one burst — the loss was masked as lag, and finish_reason still said tool_calls, so nothing downstream errored.",
+  "mutationHooks": [
+    "Remove the `index` from continuation deltas — expected must flip to f2-class anomaly, proving the fixture distinguishes 'no id' (normal) from 'no index' (noncompliant).",
+    "Swap fragment order — expected.arguments must fail to parse, proving concatenation order is asserted."
+  ],
+  "specBasis": [
+    "OpenAI function-calling streaming guide: first chunk carries id and name; subsequent chunks carry argument fragments only (keyed by index) — absence of id on continuations is the documented norm.",
+    "Source case confirms upstream (OpenAI/Azure standard format) emitted a conformant stream; the defect was the proxy's accumulation filter."
+  ],
+  "desensitized": true,
+  "notes": "Fault-layer teaching fixture: same input stream is 'pass' for a correct accumulator and 'silent loss' for an over-strict one. The diagnostic tool must therefore judge the accumulator against the raw events, not merely replay the SDK's own projection (avoid self-as-referee, 0.6.0 plan §4)."
+}

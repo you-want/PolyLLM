@@ -113,6 +113,9 @@ importers:
       '@you-want/polyllm-deepseek':
         specifier: workspace:*
         version: link:../deepseek
+      '@you-want/polyllm-diagnostics':
+        specifier: workspace:*
+        version: link:../diagnostics
       '@you-want/polyllm-gemini':
         specifier: workspace:*
         version: link:../gemini
@@ -156,6 +159,18 @@ importers:
       '@you-want/polyllm-core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.18.0
+        version: 22.20.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.2)
+
+  packages/diagnostics:
     devDependencies:
       '@types/node':
         specifier: ^22.18.0

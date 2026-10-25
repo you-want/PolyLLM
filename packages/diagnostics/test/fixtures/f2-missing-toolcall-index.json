@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "0.1.0-d0",
+  "caseId": "C14",
+  "title": "Tool_call deltas omit the `index` field entirely (Gemini OpenAI-compatibility endpoint)",
+  "source": "Google AI Developers Forum: 'Gemini OpenAI compatibility issue with tool_call + streaming' (2025-01, unfixed as of 2025-11)",
+  "evidenceGrade": "reconstructed",
+  "endpointClass": "openai-compatible (first-party provider compatibility layer)",
+  "streamProtocol": "sse",
+  "input": {
+    "request": {
+      "model": "gemini-2.0-flash",
+      "stream": true,
+      "messages": [{ "role": "user", "content": "Weather in Tokyo?" }],
+      "tools": [
+        {
+          "type": "function",
+          "function": { "name": "get_weather", "parameters": { "type": "object", "properties": { "city": { "type": "string" } }, "required": ["city"] } }
+        }
+      ]
+    },
+    "sseEvents": [
+      "data: {\"id\":\"chatcmpl-d0f2\",\"object\":\"chat.completion.chunk\",\"model\":\"gemini-2.0-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_9z8y7x\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f2\",\"object\":\"chat.completion.chunk\",\"model\":\"gemini-2.0-flash\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"function\":{\"arguments\":\"{\\\"city\\\":\\\"TOKYO\\\"}\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f2\",\"object\":\"chat.completion.chunk\",\"model\":\"gemini-2.0-flash\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}",
+      "data: [DONE]"
+    ]
+  },
+  "expected": {
+    "toolCalls": [
+      { "id": "call_9z8y7x", "name": "get_weather", "arguments": "{\"city\":\"TOKYO\"}" }
+    ],
+    "finishReason": "tool_calls",
+    "verdict": "upstream-noncompliant-recoverable",
+    "anomalies": [
+      { "code": "STREAM_PARSE_MISSING_INDEX", "layer": "stream-parse", "note": "delta.tool_calls entries omit required `index` field (all chunks); single-call stream is recoverable by inferring index 0" }
+    ],
+    "note": "A diagnostic must report the missing index at the stream-parse layer instead of crashing (KeyError 'index' observed in source case) and instead of silently accepting the stream. Recovery-by-default is only safe for a single call; the same shape with multiple calls must be reported as unrecoverable (see f4)."
+  },
+  "failureModeIfBuggy": "Consumers that key on `index` crash (KeyError) or drop every tool_call; silent acceptance hides a wire violation that becomes unrecoverable the moment parallel calls appear.",
+  "mutationHooks": [
+    "Add a second tool_call with distinct id and no index — expected verdict must flip to unrecoverable, proving the fixture checks call-count-dependent recoverability, not just absence of index."
+  ],
+  "specBasis": [
+    "OpenAI Chat Completions streaming: each delta.tool_calls entry carries `index` identifying which call the fragment extends.",
+    "Google forum thread documents the upstream omission persists across model generations (user quote, 2025-11: index field still not emitted)."
+  ],
+  "desensitized": true,
+  "notes": "Reconstructed from the forum thread's chunk descriptions and user workarounds (sniff model name, hardcode index=0). Same wire defect class independently observed in litellm #21331 bridge and ollama #15457 — see candidates list §1."
+}

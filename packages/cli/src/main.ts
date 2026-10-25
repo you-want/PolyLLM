@@ -2,6 +2,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { parsePolyLLMConfig, readPolyLLMConfig } from './config.js'
+import { runDiagnose } from '@you-want/polyllm-diagnostics'
 import { doctorConfig, listSelectedModels } from './doctor.js'
 import { generateNewPluginFiles } from './new-plugin.js'
 import { generateProjectFiles } from './project.js'
@@ -17,6 +18,9 @@ interface CliOptions {
   openStudio: boolean
   providerId?: string
   providerName?: string
+  fixturePath?: string
+  outDir?: string
+  quiet?: boolean
 }
 
 function parseArgs(argv: readonly string[]): CliOptions {
@@ -42,6 +46,9 @@ function parseArgs(argv: readonly string[]): CliOptions {
     else if (arg === '--no-open') options.openStudio = false
     else if (arg === '--provider') options.providerId = args[++index]
     else if (arg === '--provider-name') options.providerName = args[++index]
+    else if (arg === '--fixture') options.fixturePath = args[++index]
+    else if (arg === '--out') options.outDir = args[++index]
+    else if (arg === '--quiet') options.quiet = true
     else throw new Error(`未知参数: ${arg}`)
   }
   return options
@@ -94,7 +101,7 @@ async function newPlugin(options: CliOptions): Promise<void> {
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2))
   if (!options.command || ['help', '--help', '-h'].includes(options.command)) {
-    console.log(`PolyLLM CLI\n\n用法:\n  polyllm studio [--host 127.0.0.1] [--port 5177] [--no-open]\n  polyllm init --config polyllm.config.json --dir ./my-app\n  polyllm doctor --config polyllm.config.json\n  polyllm models --config polyllm.config.json\n  polyllm new-plugin --provider <id> [--provider-name <Name>] [--dir ./packages/<id>]\n`)
+    console.log(`PolyLLM CLI\n\n用法:\n  polyllm studio [--host 127.0.0.1] [--port 5177] [--no-open]\n  polyllm init --config polyllm.config.json --dir ./my-app\n  polyllm doctor --config polyllm.config.json\n  polyllm models --config polyllm.config.json\n  polyllm new-plugin --provider <id> [--provider-name <Name>] [--dir ./packages/<id>]\n  polyllm diagnose --fixture <file|dir> [--out <dir>] [--quiet]\n`)
     return
   }
 
@@ -114,6 +121,17 @@ async function main(): Promise<void> {
 
   if (options.command === 'new-plugin') {
     await newPlugin(options)
+    return
+  }
+
+  if (options.command === 'diagnose') {
+    if (!options.fixturePath) throw new Error('diagnose 需要 --fixture <file|dir> 参数（离线重放，不读取配置、不发起网络请求）')
+    const result = await runDiagnose({
+      fixturePath: resolve(options.fixturePath),
+      ...(options.outDir ? { outDir: resolve(options.outDir) } : {}),
+      quiet: options.quiet === true,
+    })
+    process.exitCode = result.exitCode
     return
   }
 

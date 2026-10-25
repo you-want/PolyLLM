@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "0.1.0-d0",
+  "caseId": "C13",
+  "title": "Upstream sends explicit nulls in continuation tool_call deltas, overwriting first-chunk id/name",
+  "source": "deepseek-ai/deepseek-harness#1713 (2026-08, SGLang OpenAI-compatible endpoint serving DeepSeek)",
+  "evidenceGrade": "captured-derived",
+  "endpointClass": "openai-compatible",
+  "streamProtocol": "sse",
+  "input": {
+    "request": {
+      "model": "deepseek-v4-flash",
+      "stream": true,
+      "messages": [{ "role": "user", "content": "Read greeting.txt and reply with its contents." }],
+      "tools": [
+        {
+          "type": "function",
+          "function": { "name": "read_file", "parameters": { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] } }
+        }
+      ]
+    },
+    "sseEvents": [
+      "data: {\"id\":\"chatcmpl-d0f1\",\"object\":\"chat.completion.chunk\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"call_a1b2c3\",\"type\":\"function\",\"function\":{\"name\":\"read_file\",\"arguments\":\"\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f1\",\"object\":\"chat.completion.chunk\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":null,\"type\":null,\"function\":{\"name\":null,\"arguments\":\"{\\\"path\\\":\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f1\",\"object\":\"chat.completion.chunk\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":null,\"type\":null,\"function\":{\"name\":null,\"arguments\":\"\\\"greeting.txt\\\"}\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f1\",\"object\":\"chat.completion.chunk\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}",
+      "data: [DONE]"
+    ]
+  },
+  "expected": {
+    "toolCalls": [
+      { "id": "call_a1b2c3", "name": "read_file", "arguments": "{\"path\":\"greeting.txt\"}" }
+    ],
+    "finishReason": "tool_calls",
+    "verdict": "pass",
+    "anomalies": [],
+    "note": "An accumulator that treats null as 'no change' (absence semantics) reconstructs the call perfectly. The stream itself is anomalous (nulls where OpenAI omits fields), but it is recoverable with zero information loss, so the correct verdict is pass-with-no-anomaly rather than upstream-noncompliant."
+  },
+  "failureModeIfBuggy": "Accumulator using strict `!== undefined` guards keeps null overwrites: id and name become null, dispatch fails with UNKNOWN_TOOL / 'unknown tool \"\"', and the agent retries until its step budget is exhausted (observed in source case).",
+  "mutationHooks": [
+    "Change continuation delta `\"id\":null` to `\"id\":\"call_zzz\"` — expected verdict must flip to a merge/identity anomaly, proving the fixture distinguishes null from present values.",
+    "Drop the second fragment's arguments — expected.arguments must fail to parse, proving full-argument assembly is actually asserted."
+  ],
+  "specBasis": [
+    "OpenAI Chat Completions streaming: fields are omitted (absent) rather than null when unchanged; absence means 'no change' for delta accumulation.",
+    "OpenAI function-calling streaming guide: arguments fragments are concatenated across deltas for the tool call identified by index."
+  ],
+  "desensitized": true,
+  "notes": "Rebuilt from the wire captures quoted in the source discussion (callId/name empty after accumulation with intact arguments). Upstream identified as SGLang; no endpoint URLs or credentials included."
+}

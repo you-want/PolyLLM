@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "0.1.0-d0",
+  "caseId": "C04+C27",
+  "title": "Parallel tool calls all sent with constant index=0; only ids distinguish calls",
+  "source": "litellm#21331 (2026-02, Responses-API bridge hardcodes index=0) + ollama#15457 (2026-04, OpenAI-compatible endpoint always index 0); same class as Gemini C14",
+  "evidenceGrade": "reconstructed",
+  "endpointClass": "openai-compatible (bridge / local runtime)",
+  "streamProtocol": "sse",
+  "input": {
+    "request": {
+      "model": "qwen3:8b",
+      "stream": true,
+      "messages": [{ "role": "user", "content": "What's the weather in Paris and the current UTC time?" }],
+      "tools": [
+        {
+          "type": "function",
+          "function": { "name": "get_weather", "parameters": { "type": "object", "properties": { "city": { "type": "string" } }, "required": ["city"] } }
+        },
+        {
+          "type": "function",
+          "function": { "name": "get_time", "parameters": { "type": "object", "properties": { "tz": { "type": "string" } }, "required": ["tz"] } }
+        }
+      ]
+    },
+    "sseEvents": [
+      "data: {\"id\":\"chatcmpl-d0f4\",\"object\":\"chat.completion.chunk\",\"model\":\"qwen3:8b\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"call_p1\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f4\",\"object\":\"chat.completion.chunk\",\"model\":\"qwen3:8b\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_p1\",\"type\":\"function\",\"function\":{\"arguments\":\"{\\\"city\\\":\\\"Paris\\\"}\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f4\",\"object\":\"chat.completion.chunk\",\"model\":\"qwen3:8b\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_p2\",\"type\":\"function\",\"function\":{\"name\":\"get_time\",\"arguments\":\"\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f4\",\"object\":\"chat.completion.chunk\",\"model\":\"qwen3:8b\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_p2\",\"type\":\"function\",\"function\":{\"arguments\":\"{\\\"tz\\\":\\\"UTC\\\"}\"}}]},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-d0f4\",\"object\":\"chat.completion.chunk\",\"model\":\"qwen3:8b\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}",
+      "data: [DONE]"
+    ]
+  },
+  "expected": {
+    "toolCalls": [
+      { "id": "call_p1", "name": "get_weather", "arguments": "{\"city\":\"Paris\"}" },
+      { "id": "call_p2", "name": "get_time", "arguments": "{\"tz\":\"UTC\"}" }
+    ],
+    "finishReason": "tool_calls",
+    "verdict": "upstream-noncompliant-recoverable",
+    "anomalies": [
+      { "code": "STREAM_PARSE_CONSTANT_INDEX", "layer": "stream-parse", "note": "all tool_call deltas carry constant `index`=0 across two distinct calls (OpenAI requires index to identify the call being extended)" },
+      { "code": "NORMALIZATION_ID_RESENT", "layer": "normalization", "note": "reconstruction only possible by keying on `id`; ids are present on every delta in this capture, which is itself a deviation (OpenAI sends id on the first delta only)" }
+    ],
+    "note": "Expected output has two separate, fully-assembled calls. Index-keyed accumulation merges or re-initializes them (both failure modes observed in source cases). Verdict is recoverable only because ids are consistent across deltas here; a variant where fragments lack ids AND index is constant must be reported as unrecoverable rather than silently merged."
+  },
+  "failureModeIfBuggy": "Index-keyed consumer merges both calls into one malformed tool call with concatenated arguments (`{\"city\":\"Paris\"}{\"tz\":\"UTC\"}`), or re-initializes the call on every id-bearing chunk, losing accumulated arguments.",
+  "mutationHooks": [
+    "Remove ids from the two argument-fragment deltas — expected verdict must flip to unrecoverable (attribution ambiguous), proving the fixture encodes the recoverability condition, not just the happy path.",
+    "Change second call's index to 1 — anomalies must become empty, proving the anomaly fires on constant-index specifically."
+  ],
+  "specBasis": [
+    "OpenAI Chat Completions streaming: `index` distinguishes parallel tool calls; fragments for different calls must not share an index.",
+    "Source case #21331 documents consumer-side merge under index=0 and the reporter's virtual-index workaround ('tool call IDs are unique and consistent across deltas, even when the streaming index is wrong')."
+  ],
+  "desensitized": true,
+  "notes": "Covers the defect class independently observed in three ecosystems (see candidates list §1): Gemini compat endpoint (f2), LiteLLM Responses bridge (#21331), Ollama /v1 (#15457). Ollama #7881 documents the fully-missing-index variant — same recoverability logic as f2."
+}

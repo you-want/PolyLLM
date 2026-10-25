@@ -1,0 +1,31 @@
+{
+  "name": "@you-want/polyllm-diagnostics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PolyLLM diagnostics (experimental 0.6.0): offline replay of OpenAI-compatible stream fixtures with an independent reference accumulator.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/you-want/PolyLLM",
+    "directory": "packages/diagnostics"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
