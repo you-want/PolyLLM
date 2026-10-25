@@ -6,21 +6,43 @@
 //! cross-language consistency is asserted by data instead of by parallel
 //! reading of three implementations.
 //!
-//! Scope of this first slice: unified request/message/tool types, stable error
-//! codes, model-id parsing, and the parameter policy engine mirrored from
-//! `packages/core/src/params.ts` (strict throws, auto/lenient drop with
-//! warnings, documented clamping semantics).
+//! Implemented: unified types, stable error codes + categories, param policy,
+//! model registry (snapshot/model/alias/normalized), transport abstraction,
+//! retry policy, client with unlisted-model fallback. HTTP ships behind the
+//! default `http` feature (blocking reqwest); tests use `testing::MockTransport`.
 
+pub mod client;
 pub mod error;
+pub mod http;
 pub mod model_id;
 pub mod params;
+pub mod plugin;
+pub mod registry;
+pub mod retry;
+pub mod stream_accumulator;
+pub mod testing;
 pub mod types;
 
-pub use error::{ErrorCode, PolyLLMError};
+pub use client::{create_llm, ClientConfig, Llm};
+pub use error::{
+    classify_status, is_retryable_category, provider_http_error, provider_parse_error,
+    provider_transport_error, ErrorCategory, ErrorCode, PolyLLMError,
+};
+pub use http::{
+    check_status, resolve_provider_runtime, HttpRequest, HttpResponse, HttpTransport, Method,
+    StreamHandle,
+};
 pub use model_id::{parse_model_id, ModelId};
 pub use params::{validate_and_map_params, ParamValidationResult};
+pub use plugin::LLMPlugin;
+pub use registry::ModelRegistry;
+pub use retry::{compute_backoff_ms, with_retries};
+pub use stream_accumulator::{AssembledToolCall, StreamAccumulator};
 pub use types::{
-    Capabilities, ContentPart, ImageDetail, ImageUrl, Message, MessageContent, ModelParams,
-    ModelSpec, NumericParam, ParamPolicy, Role, ToolCall, ToolFunction, ToolTypeTag, UnifiedRequest,
-    UnifiedTool,
+    Capabilities, ChatContext, ChatOptions, ContentPart,
+    FinishReason, ImageDetail, ImageUrl, Message, MessageContent, ModelParams, ModelSpec,
+    NumericParam, ParamPolicy, ProviderConfig, ProviderModelInfo, ProviderRuntime, RetryPolicy,
+    Role, StreamDelta, StreamToolCall, StreamToolCallFunction, ToolCall, ToolCallFunction, ToolFunction, ToolTypeTag,
+    UnifiedChoice,
+    UnifiedRequest, UnifiedResponse, UnifiedStreamChunk, UnifiedTool, UnifiedUsage,
 };

@@ -159,6 +159,7 @@ pub fn validate_and_map_params(
         let max = model
             .params
             .max_tokens
+            .as_ref()
             .map(|bound| bound.max)
             .unwrap_or(model.max_output as f64);
         let clamped = clamp_number("maxTokens", max_tokens as f64, 1.0, max, policy, &mut warnings)?;
@@ -181,12 +182,18 @@ mod tests {
         ModelSpec {
             provider: "test".to_string(),
             id: "test-model".to_string(),
+            aliases: None,
+            version: None,
+            snapshot: None,
+            is_latest: None,
+            deprecated: None,
             capabilities,
             params: ModelParams {
-                temperature: Some(NumericParam { min: 0.0, max: 2.0 }),
-                top_p: Some(NumericParam { min: 0.0, max: 1.0 }),
-                max_tokens: Some(NumericParam { min: 1.0, max: 4096.0 }),
+                temperature: Some(NumericParam { min: 0.0, max: 2.0, default_value: None, field: None }),
+                top_p: Some(NumericParam { min: 0.0, max: 1.0, default_value: None, field: None }),
+                max_tokens: Some(NumericParam { min: 1.0, max: 4096.0, default_value: None, field: None }),
             },
+            context_window: 0,
             max_output: 4096,
         }
     }

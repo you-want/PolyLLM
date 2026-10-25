@@ -23,6 +23,11 @@ fn capable_spec() -> ModelSpec {
     ModelSpec {
         provider: "openai".to_string(),
         id: "gpt-4o-mini".to_string(),
+        aliases: Some(vec!["gpt4o-mini".to_string(), "mini".to_string()]),
+        version: Some("2024-07-18".to_string()),
+        snapshot: Some("gpt-4o-mini-2024-07-18".to_string()),
+        is_latest: None,
+        deprecated: None,
         capabilities: Capabilities {
             streaming: true,
             function_calling: true,
@@ -31,10 +36,11 @@ fn capable_spec() -> ModelSpec {
             vision: true,
         },
         params: ModelParams {
-            temperature: Some(NumericParam { min: 0.0, max: 2.0 }),
-            top_p: Some(NumericParam { min: 0.0, max: 1.0 }),
-            max_tokens: Some(NumericParam { min: 1.0, max: 16384.0 }),
+            temperature: Some(NumericParam { min: 0.0, max: 2.0, default_value: Some(1.0), field: None }),
+            top_p: Some(NumericParam { min: 0.0, max: 1.0, default_value: Some(1.0), field: None }),
+            max_tokens: Some(NumericParam { min: 1.0, max: 16384.0, default_value: Some(4096.0), field: Some("max_completion_tokens".to_string()) }),
         },
+        context_window: 128_000,
         max_output: 16384,
     }
 }
@@ -43,12 +49,18 @@ fn conservative_spec() -> ModelSpec {
     ModelSpec {
         provider: "custom-gateway".to_string(),
         id: "frontier-x".to_string(),
+        aliases: None,
+        version: None,
+        snapshot: None,
+        is_latest: None,
+        deprecated: None,
         capabilities: Capabilities::conservative(),
         params: ModelParams {
-            temperature: Some(NumericParam { min: 0.0, max: 2.0 }),
-            top_p: Some(NumericParam { min: 0.0, max: 1.0 }),
-            max_tokens: Some(NumericParam { min: 1.0, max: 32768.0 }),
+            temperature: Some(NumericParam { min: 0.0, max: 2.0, default_value: Some(1.0), field: None }),
+            top_p: Some(NumericParam { min: 0.0, max: 1.0, default_value: Some(1.0), field: None }),
+            max_tokens: Some(NumericParam { min: 1.0, max: 32768.0, default_value: Some(4096.0), field: None }),
         },
+        context_window: 0,
         max_output: 32768,
     }
 }

@@ -3,9 +3,14 @@ name = "polyllm-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "PolyLLM core protocol, param policy, and model identity (Rust implementation, experimental)."
+description = "PolyLLM core protocol, param policy, registry, and client (Rust implementation, experimental)."
+
+[features]
+default = ["http"]
+http = ["dep:reqwest"]
 
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+reqwest = { version = "0.12", optional = true, default-features = false, features = ["blocking", "json", "rustls-tls"] }
