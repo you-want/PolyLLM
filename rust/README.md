@@ -41,7 +41,7 @@ cargo clippy --all-targets   # 0 警告
 
 ## 边界（明确不做）
 
-- 不发布 crates.io，不进入 `pnpm verify:stability` 门禁与 CI
+- 不发布 crates.io，不进入 `pnpm verify:stability` 的 TS/Python 发布链；有独立 CI 门禁（`.github/workflows/rust.yml`：fmt / clippy / test），fixtures 变更会触发
 - 无 Gemini/Anthropic/DeepSeek 插件（OpenAI Chat Completions 一个协议先行）
 - 流式取消（AbortSignal 等价物）与 listModels 统一超时预算的跨语言对齐未做
 - Go/Java 仍按 roadmap 暂缓
