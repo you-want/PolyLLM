@@ -120,7 +120,11 @@ impl ModelRegistry {
         }
 
         let collect = |predicate: &dyn Fn(&ModelSpec) -> bool| -> Vec<ModelSpec> {
-            self.models.values().filter(|s| predicate(s)).cloned().collect()
+            self.models
+                .values()
+                .filter(|s| predicate(s))
+                .cloned()
+                .collect()
         };
 
         let global_snapshot = collect(&|s| s.snapshot.as_deref() == Some(model_name));
@@ -137,12 +141,8 @@ impl ModelRegistry {
             _ => {}
         }
 
-        let global_alias = collect(&|s| {
-            s.aliases
-                .iter()
-                .flatten()
-                .any(|alias| alias == model_name)
-        });
+        let global_alias =
+            collect(&|s| s.aliases.iter().flatten().any(|alias| alias == model_name));
         match global_alias.len() {
             1 => return Ok(global_alias[0].clone()),
             _ if global_alias.len() > 1 => return Err(ambiguous_model(input, &global_alias)),

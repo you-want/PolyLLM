@@ -2,7 +2,6 @@
 //! Python (fixtures/protocol/*.json). The fixture is the judge: if Rust
 //! diverges from the released languages, these tests fail.
 
-
 use polyllm_core::{
     validate_and_map_params, Capabilities, ErrorCode, ModelParams, ModelRegistry, ModelSpec,
     NumericParam, ParamPolicy, StreamAccumulator, UnifiedRequest,
@@ -22,8 +21,10 @@ fn load(name: &str) -> Value {
 }
 
 fn capable_spec() -> ModelSpec {
-    
-    openai_models().into_iter().find(|m| m.id == "gpt-4o-mini").unwrap()
+    openai_models()
+        .into_iter()
+        .find(|m| m.id == "gpt-4o-mini")
+        .unwrap()
 }
 
 fn conservative_spec() -> ModelSpec {
@@ -77,7 +78,11 @@ fn models_fixture_registry_resolution() {
         }
         if let Some(resolved) = expectations.get("resolvedId") {
             let spec = registry.resolve(model_ref).unwrap();
-            assert_eq!(format!("{}:{}", spec.provider, spec.id), resolved.as_str().unwrap(), "{id}");
+            assert_eq!(
+                format!("{}:{}", spec.provider, spec.id),
+                resolved.as_str().unwrap(),
+                "{id}"
+            );
             continue;
         }
         if expectations.get("functionCalling").is_some() {
@@ -108,15 +113,18 @@ fn messages_fixture_validation() {
     let fixture = load("messages.json");
     for case in fixture["cases"].as_array().unwrap() {
         let id = case["id"].as_str().unwrap();
-        let parsed: Result<UnifiedRequest, _> =
-            serde_json::from_value(case["request"].clone());
+        let parsed: Result<UnifiedRequest, _> = serde_json::from_value(case["request"].clone());
         let valid = case["valid"].as_bool().unwrap();
         match (parsed, valid) {
             (Ok(request), true) => {
                 request.validate().unwrap_or_else(|e| panic!("{id}: {e}"));
                 let expectations = &case["expectations"];
                 if let Some(count) = expectations.get("messagesCount") {
-                    assert_eq!(request.messages.len() as i64, count.as_i64().unwrap(), "{id}");
+                    assert_eq!(
+                        request.messages.len() as i64,
+                        count.as_i64().unwrap(),
+                        "{id}"
+                    );
                 }
                 if let Some(parts) = expectations.get("userContentParts") {
                     let user = request
@@ -156,12 +164,9 @@ fn json_mode_fixture_wire_mapping() {
         let expectations = &case["expectations"];
         if expectations.get("rejects").and_then(Value::as_bool) == Some(true) {
             let request: UnifiedRequest = serde_json::from_value(case["request"].clone()).unwrap();
-            let error = validate_and_map_params(
-                &spec_for(&request.model),
-                &request,
-                ParamPolicy::Strict,
-            )
-            .unwrap_err();
+            let error =
+                validate_and_map_params(&spec_for(&request.model), &request, ParamPolicy::Strict)
+                    .unwrap_err();
             assert_eq!(error.code, ErrorCode::UnsupportedParameter, "{id}");
             continue;
         }
@@ -170,7 +175,8 @@ fn json_mode_fixture_wire_mapping() {
         match expectations.get("responseFormat") {
             Some(Value::String(format)) => {
                 assert_eq!(
-                    body.pointer("/response_format/type").and_then(Value::as_str),
+                    body.pointer("/response_format/type")
+                        .and_then(Value::as_str),
                     Some(format.as_str()),
                     "{id}"
                 );
@@ -188,7 +194,9 @@ fn response_fixture_normalization() {
     let fixture = load("response.json");
     for case in fixture["cases"].as_array().unwrap() {
         let id = case["id"].as_str().unwrap();
-        let Some(source) = case.get("source") else { continue };
+        let Some(source) = case.get("source") else {
+            continue;
+        };
         let response = parse_openai_response(source, "gpt-4o-mini");
         let expectations = &case["expectations"];
         if let Some(total) = expectations.get("usageTotal") {
@@ -230,7 +238,10 @@ fn tools_fixture_wire_and_stream() {
                     if let Some(count) = expectations.get("toolCount") {
                         let body = build_openai_request_body(&request, &spec_for(&request.model));
                         assert_eq!(
-                            body.pointer("/tools").and_then(Value::as_array).map(Vec::len).unwrap_or(0) as i64,
+                            body.pointer("/tools")
+                                .and_then(Value::as_array)
+                                .map(Vec::len)
+                                .unwrap_or(0) as i64,
                             count.as_i64().unwrap(),
                             "{id}"
                         );
@@ -238,14 +249,18 @@ fn tools_fixture_wire_and_stream() {
                     if let Some(name) = expectations.get("toolName") {
                         let body = build_openai_request_body(&request, &spec_for(&request.model));
                         assert_eq!(
-                            body.pointer("/tools/0/function/name").and_then(Value::as_str),
+                            body.pointer("/tools/0/function/name")
+                                .and_then(Value::as_str),
                             Some(name.as_str().unwrap()),
                             "{id}"
                         );
                     }
                     if expectations.get("hasToolResult") == Some(&Value::Bool(true)) {
                         assert!(
-                            request.messages.iter().any(|m| m.role == polyllm_core::Role::Tool),
+                            request
+                                .messages
+                                .iter()
+                                .any(|m| m.role == polyllm_core::Role::Tool),
                             "{id}"
                         );
                     }
@@ -267,7 +282,12 @@ fn tools_fixture_wire_and_stream() {
                 );
             }
             if let Some(count) = expectations.get("toolCallCount") {
-                let calls = response.choices[0].message.tool_calls.as_ref().map(Vec::len).unwrap_or(0);
+                let calls = response.choices[0]
+                    .message
+                    .tool_calls
+                    .as_ref()
+                    .map(Vec::len)
+                    .unwrap_or(0);
                 assert_eq!(calls as i64, count.as_i64().unwrap(), "{id}");
             }
             if expectations.get("argumentsParseOk") == Some(&Value::Bool(true)) {
@@ -348,12 +368,21 @@ fn stream_framing_fixture() {
                 assert_eq!(chunks.len(), expected.len(), "{id}");
                 for (chunk, expected_chunk) in chunks.iter().zip(expected) {
                     if let Some(content) = expected_chunk.pointer("/delta/content") {
-                        assert_eq!(&chunk.delta.content.clone().unwrap_or_default(), content, "{id}");
+                        assert_eq!(
+                            &chunk.delta.content.clone().unwrap_or_default(),
+                            content,
+                            "{id}"
+                        );
                     }
                     if let Some(finish) = expected_chunk.get("finishReason") {
                         assert_eq!(
                             chunk.finish_reason,
-                            Some(serde_json::from_value::<polyllm_core::FinishReason>(finish.clone()).unwrap()),
+                            Some(
+                                serde_json::from_value::<polyllm_core::FinishReason>(
+                                    finish.clone()
+                                )
+                                .unwrap()
+                            ),
                             "{id}"
                         );
                     }
@@ -387,7 +416,9 @@ fn errors_timeout_fixture_classification() {
                 polyllm_core::ErrorCategory::Connection,
                 "openai: 连接失败",
             ),
-            "invalid-json-parse" => polyllm_core::provider_parse_error("openai", "openai: 响应解析失败"),
+            "invalid-json-parse" => {
+                polyllm_core::provider_parse_error("openai", "openai: 响应解析失败")
+            }
             "timeout" => polyllm_core::provider_transport_error(
                 "openai",
                 polyllm_core::ErrorCategory::Timeout,
@@ -400,7 +431,11 @@ fn errors_timeout_fixture_classification() {
             ),
             other => panic!("{id}: unknown trigger kind {other}"),
         };
-        assert_eq!(category_of(&error), expected["category"].as_str().unwrap(), "{id}");
+        assert_eq!(
+            category_of(&error),
+            expected["category"].as_str().unwrap(),
+            "{id}"
+        );
         assert_eq!(
             retryable_of(&error),
             expected["retryable"].as_bool().unwrap(),

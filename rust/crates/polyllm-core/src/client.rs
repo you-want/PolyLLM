@@ -91,10 +91,12 @@ impl Llm {
                     Some((provider, id)) if !provider.is_empty() => (provider, id),
                     _ => return Err(error),
                 };
-                let dynamic = self.plugins.get(provider).cloned().ok_or_else(|| error.clone())?;
-                dynamic
-                    .create_model_spec(model_id)
-                    .ok_or(error)?
+                let dynamic = self
+                    .plugins
+                    .get(provider)
+                    .cloned()
+                    .ok_or_else(|| error.clone())?;
+                dynamic.create_model_spec(model_id).ok_or(error)?
             }
         };
         let plugin = self
@@ -130,9 +132,17 @@ impl Llm {
     ) -> Result<UnifiedResponse, PolyLLMError> {
         request.validate()?;
         let prepared = self.prepare(model, request, options)?;
-        self.with_retries(options, |context| {
-            prepared.plugin.chat(&prepared.request, &self.provider_config(&prepared.spec)?, &context)
-        }, &prepared)
+        self.with_retries(
+            options,
+            |context| {
+                prepared.plugin.chat(
+                    &prepared.request,
+                    &self.provider_config(&prepared.spec)?,
+                    &context,
+                )
+            },
+            &prepared,
+        )
     }
 
     pub fn chat_stream(
@@ -146,14 +156,18 @@ impl Llm {
         let mut streaming = request.clone();
         streaming.stream = Some(true);
         let prepared = self.prepare(model, &streaming, options)?;
-        self.with_retries(options, |context| {
-            prepared.plugin.chat_stream(
-                &prepared.request,
-                &self.provider_config(&prepared.spec)?,
-                &context,
-                sink,
-            )
-        }, &prepared)
+        self.with_retries(
+            options,
+            |context| {
+                prepared.plugin.chat_stream(
+                    &prepared.request,
+                    &self.provider_config(&prepared.spec)?,
+                    &context,
+                    sink,
+                )
+            },
+            &prepared,
+        )
     }
 
     fn with_retries<T>(
@@ -180,13 +194,17 @@ impl Llm {
     }
 
     fn provider_config(&self, spec: &ModelSpec) -> Result<ProviderConfig, PolyLLMError> {
-        self.config.providers.get(&spec.provider).cloned().ok_or_else(|| {
-            PolyLLMError::with_details(
-                ErrorCode::MissingProviderConfig,
-                format!("缺少供应商配置: {}", spec.provider),
-                serde_json::json!({ "provider": spec.provider }),
-            )
-        })
+        self.config
+            .providers
+            .get(&spec.provider)
+            .cloned()
+            .ok_or_else(|| {
+                PolyLLMError::with_details(
+                    ErrorCode::MissingProviderConfig,
+                    format!("缺少供应商配置: {}", spec.provider),
+                    serde_json::json!({ "provider": spec.provider }),
+                )
+            })
     }
 
     pub fn list_models(&self) -> Vec<ModelSpec> {

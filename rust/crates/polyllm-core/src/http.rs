@@ -65,7 +65,12 @@ pub trait HttpTransport: Send + Sync {
 
 /// Shared HTTP-status gate: mirrors TS `checkedFetch` — a non-2xx status
 /// becomes `provider_http_error` regardless of body readability.
-pub fn check_status(provider: &str, status: u16, headers: &[(String, String)], body: &str) -> Result<(), PolyLLMError> {
+pub fn check_status(
+    provider: &str,
+    status: u16,
+    headers: &[(String, String)],
+    body: &str,
+) -> Result<(), PolyLLMError> {
     if (200..300).contains(&status) {
         return Ok(());
     }
@@ -95,7 +100,10 @@ pub fn resolve_provider_runtime(
             ErrorCode::MissingApiKey,
             format!(
                 "缺少 API Key: {provider}。请设置 config.apiKey 或环境变量 {}",
-                config.api_key_env.as_deref().unwrap_or("<未配置 apiKeyEnv>")
+                config
+                    .api_key_env
+                    .as_deref()
+                    .unwrap_or("<未配置 apiKeyEnv>")
             ),
             json!({ "provider": provider }),
         ));
@@ -118,9 +126,17 @@ pub fn resolve_provider_runtime(
 
 /// Transport failure classification for drivers that surface IO errors:
 /// reqwest timeouts map to `timeout`, connect failures to `connection`.
-pub fn classify_transport_error(provider: &str, is_timeout: bool, is_connect: bool) -> PolyLLMError {
+pub fn classify_transport_error(
+    provider: &str,
+    is_timeout: bool,
+    is_connect: bool,
+) -> PolyLLMError {
     if is_timeout {
-        provider_transport_error(provider, ErrorCategory::Timeout, format!("{provider}: 请求超时"))
+        provider_transport_error(
+            provider,
+            ErrorCategory::Timeout,
+            format!("{provider}: 请求超时"),
+        )
     } else if is_connect {
         provider_transport_error(
             provider,
@@ -140,7 +156,7 @@ pub fn classify_transport_error(provider: &str, is_timeout: bool, is_connect: bo
 mod reqwest_transport {
     use std::io::Read;
 
-    use super::{classify_transport_error, HttpTransport, HttpRequest, HttpResponse, StreamHandle};
+    use super::{classify_transport_error, HttpRequest, HttpResponse, HttpTransport, StreamHandle};
     use crate::error::PolyLLMError;
 
     /// Default blocking transport. One total budget covers headers, body and
@@ -157,15 +173,17 @@ mod reqwest_transport {
             }
         }
 
-        fn execute(&self, request: &HttpRequest) -> Result<reqwest::blocking::Response, PolyLLMError> {
+        fn execute(
+            &self,
+            request: &HttpRequest,
+        ) -> Result<reqwest::blocking::Response, PolyLLMError> {
             let method = match request.method {
                 super::Method::Get => reqwest::Method::GET,
                 super::Method::Post => reqwest::Method::POST,
             };
-            let mut builder = self
-                .client
-                .request(method, &request.url)
-                .timeout(std::time::Duration::from_millis(request.timeout_ms.unwrap_or(u64::MAX / 2)));
+            let mut builder = self.client.request(method, &request.url).timeout(
+                std::time::Duration::from_millis(request.timeout_ms.unwrap_or(u64::MAX / 2)),
+            );
             for (key, value) in &request.headers {
                 builder = builder.header(key, value);
             }

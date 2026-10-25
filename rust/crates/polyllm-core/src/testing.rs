@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use crate::error::PolyLLMError;
-use crate::http::{HttpTransport, HttpRequest, HttpResponse, StreamHandle};
+use crate::http::{HttpRequest, HttpResponse, HttpTransport, StreamHandle};
 
 pub enum MockAction {
     /// HTTP response with status and (JSON or arbitrary) body.

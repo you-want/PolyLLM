@@ -39,10 +39,9 @@ pub use registry::ModelRegistry;
 pub use retry::{compute_backoff_ms, with_retries};
 pub use stream_accumulator::{AssembledToolCall, StreamAccumulator};
 pub use types::{
-    Capabilities, ChatContext, ChatOptions, ContentPart,
-    FinishReason, ImageDetail, ImageUrl, Message, MessageContent, ModelParams, ModelSpec,
-    NumericParam, ParamPolicy, ProviderConfig, ProviderModelInfo, ProviderRuntime, RetryPolicy,
-    Role, StreamDelta, StreamToolCall, StreamToolCallFunction, ToolCall, ToolCallFunction, ToolFunction, ToolTypeTag,
-    UnifiedChoice,
+    Capabilities, ChatContext, ChatOptions, ContentPart, FinishReason, ImageDetail, ImageUrl,
+    Message, MessageContent, ModelParams, ModelSpec, NumericParam, ParamPolicy, ProviderConfig,
+    ProviderModelInfo, ProviderRuntime, RetryPolicy, Role, StreamDelta, StreamToolCall,
+    StreamToolCallFunction, ToolCall, ToolCallFunction, ToolFunction, ToolTypeTag, UnifiedChoice,
     UnifiedRequest, UnifiedResponse, UnifiedStreamChunk, UnifiedTool, UnifiedUsage,
 };

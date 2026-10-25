@@ -19,15 +19,19 @@ pub fn parse_model_id(input: &str) -> Result<ModelId<'_>, PolyLLMError> {
         ));
     }
     match trimmed.split_once(':') {
-        Some((provider, id)) if !provider.is_empty() && !id.is_empty() => {
-            Ok(ModelId { provider: Some(provider), id })
-        }
+        Some((provider, id)) if !provider.is_empty() && !id.is_empty() => Ok(ModelId {
+            provider: Some(provider),
+            id,
+        }),
         Some(_) => Err(PolyLLMError::with_details(
             ErrorCode::InvalidConfig,
             format!("无效模型标识: {input}。期望 provider:id"),
             serde_json::json!({ "input": input }),
         )),
-        None => Ok(ModelId { provider: None, id: trimmed }),
+        None => Ok(ModelId {
+            provider: None,
+            id: trimmed,
+        }),
     }
 }
 

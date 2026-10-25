@@ -152,11 +152,7 @@ impl PolyLLMError {
     }
 }
 
-pub(crate) fn unsupported_parameter(
-    parameter: &str,
-    reason: &str,
-    policy: &str,
-) -> PolyLLMError {
+pub(crate) fn unsupported_parameter(parameter: &str, reason: &str, policy: &str) -> PolyLLMError {
     PolyLLMError::with_details(
         ErrorCode::UnsupportedParameter,
         format!("参数不被目标模型支持: {parameter}。{reason}"),

@@ -44,7 +44,8 @@ pub trait LLMPlugin: Send + Sync {
         _config: &ProviderConfig,
         _timeout_ms: Option<u64>,
         _transport: &dyn HttpTransport,
-    ) -> Result<Vec<ProviderModelInfo>, PolyLLMError> {        Err(PolyLLMError::with_details(
+    ) -> Result<Vec<ProviderModelInfo>, PolyLLMError> {
+        Err(PolyLLMError::with_details(
             ErrorCode::UnsupportedParameter,
             format!("供应商 {} 不支持模型发现", self.provider()),
             serde_json::json!({ "provider": self.provider() }),

@@ -114,8 +114,8 @@ pub fn parse_raw_events(raw: &str, wire: &str) -> Result<Vec<Value>, polyllm_cor
     let mut framer = EventFramer::new(wire);
     let mut events = Vec::new();
     let process = |line: &str,
-                       framer: &mut EventFramer,
-                       events: &mut Vec<Value>|
+                   framer: &mut EventFramer,
+                   events: &mut Vec<Value>|
      -> Result<(), polyllm_core::PolyLLMError> {
         match framer.feed_line(line)? {
             Payload::Event(event) => events.push(event),

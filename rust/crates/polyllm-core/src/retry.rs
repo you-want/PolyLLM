@@ -114,7 +114,11 @@ pub fn with_retries<T>(
     deadline_ms: Option<u64>,
 ) -> Result<(T, u32), PolyLLMError> {
     validate_retry_policy(policy)?;
-    let limit = if policy.is_some() { max_attempts(policy) } else { 1 };
+    let limit = if policy.is_some() {
+        max_attempts(policy)
+    } else {
+        1
+    };
     let started = Instant::now();
 
     for attempt in 1..=limit {

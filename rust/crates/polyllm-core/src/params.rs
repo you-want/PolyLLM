@@ -15,9 +15,7 @@
 use serde_json::json;
 
 use crate::error::{unsupported_parameter, PolyLLMError};
-use crate::types::{
-    ContentPart, MessageContent, ModelSpec, ParamPolicy, Role, UnifiedRequest,
-};
+use crate::types::{ContentPart, MessageContent, ModelSpec, ParamPolicy, Role, UnifiedRequest};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParamValidationResult {
@@ -105,10 +103,18 @@ pub fn validate_and_map_params(
     if next.tools.as_ref().is_some_and(|tools| !tools.is_empty())
         && !model.capabilities.function_calling
     {
-        unsupported(policy, "tools", "该模型不支持 function calling", &mut warnings)?;
+        unsupported(
+            policy,
+            "tools",
+            "该模型不支持 function calling",
+            &mut warnings,
+        )?;
         next.tools = Some(Vec::new());
     }
-    let has_system = next.messages.iter().any(|message| message.role == Role::System);
+    let has_system = next
+        .messages
+        .iter()
+        .any(|message| message.role == Role::System);
     if !model.capabilities.system_prompt && has_system {
         unsupported(
             policy,
@@ -162,11 +168,21 @@ pub fn validate_and_map_params(
             .as_ref()
             .map(|bound| bound.max)
             .unwrap_or(model.max_output as f64);
-        let clamped = clamp_number("maxTokens", max_tokens as f64, 1.0, max, policy, &mut warnings)?;
+        let clamped = clamp_number(
+            "maxTokens",
+            max_tokens as f64,
+            1.0,
+            max,
+            policy,
+            &mut warnings,
+        )?;
         next.max_tokens = Some(clamped.round() as i64);
     }
 
-    Ok(ParamValidationResult { request: next, warnings })
+    Ok(ParamValidationResult {
+        request: next,
+        warnings,
+    })
 }
 
 #[cfg(test)]
@@ -189,9 +205,24 @@ mod tests {
             deprecated: None,
             capabilities,
             params: ModelParams {
-                temperature: Some(NumericParam { min: 0.0, max: 2.0, default_value: None, field: None }),
-                top_p: Some(NumericParam { min: 0.0, max: 1.0, default_value: None, field: None }),
-                max_tokens: Some(NumericParam { min: 1.0, max: 4096.0, default_value: None, field: None }),
+                temperature: Some(NumericParam {
+                    min: 0.0,
+                    max: 2.0,
+                    default_value: None,
+                    field: None,
+                }),
+                top_p: Some(NumericParam {
+                    min: 0.0,
+                    max: 1.0,
+                    default_value: None,
+                    field: None,
+                }),
+                max_tokens: Some(NumericParam {
+                    min: 1.0,
+                    max: 4096.0,
+                    default_value: None,
+                    field: None,
+                }),
             },
             context_window: 0,
             max_output: 4096,

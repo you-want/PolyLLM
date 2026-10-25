@@ -78,7 +78,11 @@ pub struct Message {
     pub content: MessageContent,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(rename = "toolCallId", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "toolCallId",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub tool_call_id: Option<String>,
     #[serde(rename = "toolCalls", default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCall>>,
@@ -187,7 +191,11 @@ pub struct UnifiedResponse {
     pub model: String,
     pub choices: Vec<UnifiedChoice>,
     pub usage: UnifiedUsage,
-    #[serde(rename = "providerMetadata", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "providerMetadata",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub provider_metadata: Option<Value>,
 }
 
@@ -229,9 +237,17 @@ pub struct UnifiedStreamChunk {
     pub delta: StreamDelta,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<UnifiedUsage>,
-    #[serde(rename = "finishReason", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "finishReason",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub finish_reason: Option<FinishReason>,
-    #[serde(rename = "providerMetadata", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "providerMetadata",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub provider_metadata: Option<Value>,
 }
 
@@ -378,16 +394,27 @@ pub struct ProviderModelInfo {
 pub struct RetryPolicy {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_attempts: Option<u32>,
-    #[serde(rename = "baseDelayMs", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "baseDelayMs",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub base_delay_ms: Option<u64>,
-    #[serde(rename = "backoffFactor", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "backoffFactor",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub backoff_factor: Option<f64>,
-    #[serde(rename = "maxDelayMs", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "maxDelayMs",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_delay_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jitter: Option<f64>,
 }
-
 
 #[derive(Clone)]
 pub struct ChatContext {

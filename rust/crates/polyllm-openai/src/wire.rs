@@ -48,7 +48,10 @@ fn map_content(content: &MessageContent) -> Value {
     }
 }
 
-pub fn build_openai_request_body(request: &polyllm_core::UnifiedRequest, model: &ModelSpec) -> Value {
+pub fn build_openai_request_body(
+    request: &polyllm_core::UnifiedRequest,
+    model: &ModelSpec,
+) -> Value {
     let messages: Vec<Value> = request
         .messages
         .iter()
@@ -65,10 +68,17 @@ pub fn build_openai_request_body(request: &polyllm_core::UnifiedRequest, model: 
             if let Some(tool_call_id) = &message.tool_call_id {
                 wire.insert("tool_call_id".to_string(), json!(tool_call_id));
             }
-            if message.tool_calls.as_ref().is_some_and(|calls| !calls.is_empty()) {
+            if message
+                .tool_calls
+                .as_ref()
+                .is_some_and(|calls| !calls.is_empty())
+            {
                 wire.insert(
                     "tool_calls".to_string(),
-                    json!(message.tool_calls.as_ref().unwrap()
+                    json!(message
+                        .tool_calls
+                        .as_ref()
+                        .unwrap()
                         .iter()
                         .map(|call| json!({
                             "id": call.id,
@@ -98,7 +108,12 @@ pub fn build_openai_request_body(request: &polyllm_core::UnifiedRequest, model: 
         // Field selection follows the model spec: listed OpenAI models use
         // `max_completion_tokens`; conservative specs without a field mapping
         // fall back to `max_tokens` (TS default branch).
-        match model.params.max_tokens.as_ref().and_then(|bound| bound.field.clone()) {
+        match model
+            .params
+            .max_tokens
+            .as_ref()
+            .and_then(|bound| bound.field.clone())
+        {
             Some(field) if field == "max_tokens" => {
                 body.insert("max_tokens".to_string(), json!(max_tokens));
             }
@@ -112,15 +127,28 @@ pub fn build_openai_request_body(request: &polyllm_core::UnifiedRequest, model: 
     }
     if request.stream == Some(true) {
         body.insert("stream".to_string(), json!(true));
-        body.insert("stream_options".to_string(), json!({ "include_usage": true }));
+        body.insert(
+            "stream_options".to_string(),
+            json!({ "include_usage": true }),
+        );
     }
     if request.json_mode == Some(true) {
-        body.insert("response_format".to_string(), json!({ "type": "json_object" }));
+        body.insert(
+            "response_format".to_string(),
+            json!({ "type": "json_object" }),
+        );
     }
-    if request.tools.as_ref().is_some_and(|tools| !tools.is_empty()) {
+    if request
+        .tools
+        .as_ref()
+        .is_some_and(|tools| !tools.is_empty())
+    {
         body.insert(
             "tools".to_string(),
-            json!(request.tools.as_ref().unwrap()
+            json!(request
+                .tools
+                .as_ref()
+                .unwrap()
                 .iter()
                 .map(|tool| json!({
                     "type": "function",
@@ -203,7 +231,10 @@ pub fn parse_openai_response(data: &Value, fallback_model: &str) -> UnifiedRespo
         .get("choices")
         .and_then(Value::as_array)
         .and_then(|choices| choices.first());
-    let message = choice.and_then(|c| c.get("message")).cloned().unwrap_or(json!({}));
+    let message = choice
+        .and_then(|c| c.get("message"))
+        .cloned()
+        .unwrap_or(json!({}));
     let assistant = wire_message_to_unified(&message);
     let usage_present = data.get("usage").is_some_and(|usage| !usage.is_null());
     let usage = data.get("usage").cloned().unwrap_or(json!({}));
@@ -261,7 +292,10 @@ pub fn parse_openai_stream_event(event: &Value, fallback_model: &str) -> Unified
         .get("choices")
         .and_then(Value::as_array)
         .and_then(|choices| choices.first());
-    let delta_value = choice.and_then(|c| c.get("delta")).cloned().unwrap_or(json!({}));
+    let delta_value = choice
+        .and_then(|c| c.get("delta"))
+        .cloned()
+        .unwrap_or(json!({}));
     let tool_calls = delta_value
         .get("tool_calls")
         .and_then(Value::as_array)
@@ -293,20 +327,23 @@ pub fn parse_openai_stream_event(event: &Value, fallback_model: &str) -> Unified
                 })
                 .collect()
         });
-    let usage = event.get("usage").filter(|usage| !usage.is_null()).map(|usage| UnifiedUsage {
-        prompt_tokens: usage
-            .get("prompt_tokens")
-            .and_then(Value::as_i64)
-            .unwrap_or(0),
-        completion_tokens: usage
-            .get("completion_tokens")
-            .and_then(Value::as_i64)
-            .unwrap_or(0),
-        total_tokens: usage
-            .get("total_tokens")
-            .and_then(Value::as_i64)
-            .unwrap_or(0),
-    });
+    let usage = event
+        .get("usage")
+        .filter(|usage| !usage.is_null())
+        .map(|usage| UnifiedUsage {
+            prompt_tokens: usage
+                .get("prompt_tokens")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
+            completion_tokens: usage
+                .get("completion_tokens")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
+            total_tokens: usage
+                .get("total_tokens")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
+        });
     UnifiedStreamChunk {
         id: event
             .get("id")

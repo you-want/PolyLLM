@@ -2,14 +2,14 @@
 //! error codes, unlisted-model fallback, streaming, and retry behavior — all
 //! without network.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
+use polyllm_core::testing::{MockAction, MockTransport};
 use polyllm_core::{
     create_llm, provider_http_error, provider_transport_error, ClientConfig, ErrorCategory,
     ParamPolicy, ProviderConfig, UnifiedRequest,
 };
-use polyllm_core::testing::{MockAction, MockTransport};
 
 fn expect_err<T>(result: Result<T, polyllm_core::PolyLLMError>) -> polyllm_core::PolyLLMError {
     match result {
@@ -27,7 +27,10 @@ const CHAT_RESPONSE: &str = r#"{
   "usage": { "prompt_tokens": 12, "completion_tokens": 8, "total_tokens": 20 }
 }"#;
 
-fn base_config(transport: Arc<dyn polyllm_core::HttpTransport>, allow_unlisted: bool) -> (ClientConfig, Arc<dyn polyllm_core::HttpTransport>) {
+fn base_config(
+    transport: Arc<dyn polyllm_core::HttpTransport>,
+    allow_unlisted: bool,
+) -> (ClientConfig, Arc<dyn polyllm_core::HttpTransport>) {
     let config = ClientConfig {
         plugins: vec![openai_plugin()],
         providers: [(
@@ -67,10 +70,15 @@ fn chat_roundtrip_uses_snapshot_and_max_completion_tokens() {
 
     let mut request = simple_request();
     request.max_tokens = Some(256);
-    let response = llm.chat("openai:gpt4o-mini", &request, &Default::default()).unwrap();
+    let response = llm
+        .chat("openai:gpt4o-mini", &request, &Default::default())
+        .unwrap();
     assert_eq!(response.id, "resp_1");
     assert_eq!(response.usage.total_tokens, 20);
-    assert_eq!(response.choices[0].message.content, polyllm_core::MessageContent::Text("hello".into()));
+    assert_eq!(
+        response.choices[0].message.content,
+        polyllm_core::MessageContent::Text("hello".into())
+    );
 }
 
 #[test]
@@ -102,7 +110,9 @@ fn duplicate_provider_and_missing_config_are_rejected() {
     let transport = MockTransport::fixed(200, CHAT_RESPONSE.to_string()).shared();
     let duplicate = ClientConfig {
         plugins: vec![openai_plugin(), openai_plugin()],
-        providers: [("openai".to_string(), ProviderConfig::default())].into_iter().collect(),
+        providers: [("openai".to_string(), ProviderConfig::default())]
+            .into_iter()
+            .collect(),
         ..ClientConfig::default()
     };
     assert_eq!(
@@ -123,8 +133,8 @@ fn duplicate_provider_and_missing_config_are_rejected() {
 
 #[test]
 fn unlisted_models_fall_back_to_conservative_specs() {
-    let transport = MockTransport::new(|_| MockAction::Json(200, CHAT_RESPONSE.to_string()))
-        .shared();
+    let transport =
+        MockTransport::new(|_| MockAction::Json(200, CHAT_RESPONSE.to_string())).shared();
     let (config, transport) = base_config(transport, true);
     let llm = create_llm(config, transport).unwrap();
 
@@ -136,16 +146,27 @@ fn unlisted_models_fall_back_to_conservative_specs() {
     let strict_llm = create_llm(strict_config, transport).unwrap();
     assert_eq!(
         strict_llm
-            .chat("openai:not-a-known-model", &simple_request(), &Default::default())
+            .chat(
+                "openai:not-a-known-model",
+                &simple_request(),
+                &Default::default()
+            )
             .unwrap_err()
             .code,
         polyllm_core::ErrorCode::UnknownModel
     );
 
     let response = llm
-        .chat("openai:not-a-known-model", &simple_request(), &Default::default())
+        .chat(
+            "openai:not-a-known-model",
+            &simple_request(),
+            &Default::default(),
+        )
         .unwrap();
-    assert_eq!(response.choices[0].finish_reason, polyllm_core::FinishReason::Stop);
+    assert_eq!(
+        response.choices[0].finish_reason,
+        polyllm_core::FinishReason::Stop
+    );
 }
 
 #[test]
@@ -211,7 +232,9 @@ fn retryable_http_errors_are_retried_then_succeed() {
         }),
         ..Default::default()
     };
-    let response = llm.chat("openai:gpt-4o-mini", &simple_request(), &options).unwrap();
+    let response = llm
+        .chat("openai:gpt-4o-mini", &simple_request(), &options)
+        .unwrap();
     assert_eq!(response.id, "resp_1");
     assert_eq!(calls.load(Ordering::SeqCst), 2);
 }

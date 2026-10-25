@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use polyllm_core::{
-    check_status, resolve_provider_runtime, ChatContext, HttpRequest, LLMPlugin, Method,
-    ModelSpec, PolyLLMError, ProviderConfig, ProviderModelInfo, UnifiedRequest, UnifiedResponse,
+    check_status, resolve_provider_runtime, ChatContext, HttpRequest, LLMPlugin, Method, ModelSpec,
+    PolyLLMError, ProviderConfig, ProviderModelInfo, UnifiedRequest, UnifiedResponse,
     UnifiedStreamChunk,
 };
 use polyllm_core::{provider_parse_error, provider_transport_error, ErrorCategory};
@@ -14,8 +14,8 @@ use polyllm_core::{provider_parse_error, provider_transport_error, ErrorCategory
 use crate::models::openai_models;
 use crate::sse::{EventFramer, Payload};
 use crate::wire::{
-    build_openai_request_body, endpoint, parse_openai_models_response,
-    parse_openai_response, parse_openai_stream_event, DEFAULT_BASE_URL,
+    build_openai_request_body, endpoint, parse_openai_models_response, parse_openai_response,
+    parse_openai_stream_event, DEFAULT_BASE_URL,
 };
 
 pub struct OpenAIPlugin;
@@ -27,7 +27,10 @@ pub fn openai_plugin() -> Arc<dyn LLMPlugin> {
 fn headers(runtime: &polyllm_core::ProviderRuntime) -> Vec<(String, String)> {
     let mut all = vec![
         ("content-type".to_string(), "application/json".to_string()),
-        ("authorization".to_string(), format!("Bearer {}", runtime.api_key)),
+        (
+            "authorization".to_string(),
+            format!("Bearer {}", runtime.api_key),
+        ),
     ];
     all.extend(runtime.headers.clone());
     all
@@ -94,12 +97,7 @@ impl LLMPlugin for OpenAIPlugin {
             timeout_ms: context.timeout_ms,
         };
         let response = context.transport().send_json(&request)?;
-        check_status(
-            PROVIDER,
-            response.status,
-            &response.headers,
-            &response.body,
-        )?;
+        check_status(PROVIDER, response.status, &response.headers, &response.body)?;
         let data: serde_json::Value = serde_json::from_str(&response.body)
             .map_err(|_| provider_parse_error(PROVIDER, "openai: 响应解析失败"))?;
         if !data.is_object() {
@@ -129,7 +127,10 @@ impl LLMPlugin for OpenAIPlugin {
         };
         let handle = context.transport().send_stream(&request)?;
         check_status(PROVIDER, handle.status, &handle.headers, "")?;
-        let wire = handle.header("content-type").unwrap_or("text/event-stream").to_string();
+        let wire = handle
+            .header("content-type")
+            .unwrap_or("text/event-stream")
+            .to_string();
         let mut framer = EventFramer::new(&wire);
         let mut buffer = String::new();
         for chunk in handle.chunks {
@@ -166,9 +167,13 @@ impl LLMPlugin for OpenAIPlugin {
             body: None,
             timeout_ms,
         };
-        let response = transport
-            .send_json(&request)
-            .map_err(|error| provider_transport_error(PROVIDER, ErrorCategory::Connection, format!("{PROVIDER}: 传输失败: {}", error.message)))?;
+        let response = transport.send_json(&request).map_err(|error| {
+            provider_transport_error(
+                PROVIDER,
+                ErrorCategory::Connection,
+                format!("{PROVIDER}: 传输失败: {}", error.message),
+            )
+        })?;
         check_status(PROVIDER, response.status, &response.headers, &response.body)?;
         let data: serde_json::Value = serde_json::from_str(&response.body)
             .map_err(|_| provider_parse_error(PROVIDER, "openai: 响应解析失败"))?;
