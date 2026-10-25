@@ -1,6 +1,6 @@
 {
   "name": "@you-want/polyllm-ollama",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "description": "PolyLLM Ollama provider plugin (OpenAI-compatible endpoint).",
   "license": "MIT",

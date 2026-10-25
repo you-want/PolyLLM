@@ -1,6 +1,6 @@
 {
   "name": "@you-want/polyllm-deepseek",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "description": "PolyLLM DeepSeek provider plugin.",
   "license": "MIT",

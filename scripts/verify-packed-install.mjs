@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
-const packageDirectories = ['core', 'openai', 'deepseek', 'anthropic', 'gemini', 'ollama', 'openai-compatible', 'studio', 'cli']
+const packageDirectories = ['core', 'openai', 'deepseek', 'anthropic', 'gemini', 'ollama', 'openai-compatible', 'studio', 'cli', 'diagnostics']
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8' })

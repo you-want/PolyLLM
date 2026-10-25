@@ -12,6 +12,7 @@ const publishablePackages = [
   '@you-want/polyllm-openai-compatible',
   '@you-want/polyllm-studio',
   '@you-want/polyllm-cli',
+  '@you-want/polyllm-diagnostics',
 ]
 
 const privateWorkspacePackages = new Set([

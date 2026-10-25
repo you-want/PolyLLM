@@ -8,7 +8,7 @@ import type {
   StudioSelection,
 } from './types.js'
 
-const generatedVersion = '^0.5.0'
+const generatedVersion = '^0.6.0'
 
 export function packageManagers(language: StudioLanguage): readonly PackageManager[] {
   return language === 'python' ? ['pip'] : ['pnpm', 'npm', 'yarn']
@@ -271,8 +271,8 @@ function typescriptProjectFiles(selection: StudioSelection): GeneratedProjectFil
 function pythonProjectFiles(selection: StudioSelection): GeneratedProjectFile[] {
   const distribution = pythonDistributionName(selection.projectName)
   const module = pythonModuleName(selection.projectName)
-  const dependencies = ['polyllm-core>=0.5.0,<0.6.0', 'python-dotenv>=1.0,<2', ...enabledProviders(selection)
-    .map((provider) => `${provider.pythonPackageName}>=0.5.0,<0.6.0`)]
+  const dependencies = ['polyllm-core>=0.6.0,<0.7.0', 'python-dotenv>=1.0,<2', ...enabledProviders(selection)
+    .map((provider) => `${provider.pythonPackageName}>=0.6.0,<0.7.0`)]
   return [
     {
       path: 'pyproject.toml',

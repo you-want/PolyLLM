@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "polyllm-anthropic"
-version = "0.5.1"
+version = "0.6.0"
 description = "Anthropic plugin for PolyLLM."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["polyllm-core>=0.5.1"]
+dependencies = ["polyllm-core>=0.6.0"]
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "PolyLLM contributors" }]

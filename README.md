@@ -11,7 +11,7 @@ PolyLLM 是一个微内核、插件化的大模型统一接入层。同一份业
 
 ## 快速开始
 
-当前稳定版本 **0.5.1**(npm / PyPI)。完整指南见 [docs/getting-started.md](docs/getting-started.md)。
+当前稳定版本 **0.6.0**(npm / PyPI)。完整指南见 [docs/getting-started.md](docs/getting-started.md)。
 
 **在线试用(无需安装)**:[CodeSandbox 模板](https://codesandbox.io/s/?file=package.json) 打开即跑,预置本地 Mock 供应商。
 
@@ -58,7 +58,8 @@ const resp = await llm.chat('openai:gpt-4o-mini', {
 | `@you-want/polyllm-openai-compatible` | 任意 OpenAI-compatible 网关适配器，支持自定义 Base URL 与模型 ID，内置 OpenRouter / Qwen / Moonshot / Groq / vLLM / LiteLLM 预设 |
 | `@you-want/polyllm-studio` | 供应商目录、配置生成器、项目产物生成器 |
 | `@you-want/polyllm-studio-app` | Studio 前端源码与开发服务器（私有包，不需要发布安装） |
-| `@you-want/polyllm-cli` | Studio 启动器、配置校验、项目生成、环境检查、`new-plugin` 自定义插件脚手架 |
+| `@you-want/polyllm-cli` | Studio 启动器、配置校验、项目生成、环境检查、`new-plugin` 自定义插件脚手架、`diagnose` 离线诊断（实验） |
+| `@you-want/polyllm-diagnostics` | 实验性离线诊断：独立参考累积器、可重放流式 fixture、版本化报告 |
 | `@you-want/polyllm-website` | polyllm.raingpt.top 官网（私有包，部署到 GitHub Pages） |
 | `@you-want/polyllm-example-typescript` | TypeScript 示例应用 |
 | `polyllm-core` | Python 核心包 |
@@ -87,7 +88,7 @@ createLLM() ── 模型解析 ── 参数校验 ── 插件分发
 
 新手接入指南见 `docs/getting-started.md`。
 
-项目路线图见 [roadmap](docs/roadmap.md)，0.5.1 修复内容见 [发布记录](docs/release/v0.5.1.md)，公共 API 稳定性约定见 [API stability](docs/api-stability.md)。当前稳定版本为 **0.5.1**（npm / PyPI）。
+项目路线图见 [roadmap](docs/roadmap.md)，0.6.0 诊断功能见 [发布记录](docs/release/v0.6.0.md)，公共 API 稳定性约定见 [API stability](docs/api-stability.md)。当前稳定版本为 **0.6.0**（npm / PyPI）。诊断命令为实验功能，报告 Schema 不受稳定 API 承诺保护。
 
 ```bash
 pnpm install
@@ -170,6 +171,9 @@ node packages/cli/dist/main.js models --config polyllm.config.json
 
 # 生成一个可发布的自定义供应商插件骨架
 npx @you-want/polyllm-cli new-plugin --provider acme --provider-name Acme --dir ./packages/acme
+
+# 离线诊断：重放脱敏的流式 fixture，定位工具调用/参数/流式异常（实验）
+npx @you-want/polyllm-cli diagnose --fixture ./my-fixture.json
 ```
 
 `init` 与 Studio 共用同一个项目生成器。TypeScript 会生成 `package.json`、`tsconfig.json` 和 `src/*.ts`；Python 会生成 `pyproject.toml` 和 `src/<module>/*.py`。两种项目都包含配置、环境变量模板、README 和 `.gitignore`。
