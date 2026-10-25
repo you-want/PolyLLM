@@ -3,6 +3,9 @@ dist/
 coverage/
 *.log
 .DS_Store
+# examples/published 验收临时生成物
+examples/published/typescript/package-lock.json
+examples/published/python/.venv/
 __pycache__/
 .mypy_cache/
 *.py[cod]
