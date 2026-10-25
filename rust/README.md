@@ -1,47 +1,88 @@
-# PolyLLM Rust（实验分支）
+# PolyLLM Rust
 
-> 状态：**实验性**。目标与边界见 [roadmap §4 修订记录](../docs/roadmap.md)（2026-10-25）：0.6.0 等待外部使用证据期间，在独立分支探索 Rust 作为第三语言对齐同一份共享协议 fixture。**不进入发布范围与稳定 API 保证。开发提交全部留在 `rust` 分支，不合入 main。**
+> **Rust 语言版本的 PolyLLM 统一接入层**——与 TypeScript / Python 同一套协议、同一份共享契约 fixture 裁决，目标是对等可用。当前为 0.1.0-rc：全供应商适配完成、async 客户端就绪，crates.io 发布准备中（见文末）。
+>
+> 定位与边界见 [roadmap §4 修订记录](../docs/roadmap.md)（2026-10-25）：0.6.0 等待外部使用证据期间在独立分支起步，现已合入 main；实验性，不受稳定 API 承诺保护。
 
-## 定位
+## 快速上手
 
-Rust 实现不重新发明行为：它消费与 TypeScript / Python 相同的共享契约 fixture（`fixtures/protocol/*.json`），让跨语言一致性由数据裁决，而不是三个实现互相抄写。
+```bash
+cargo add polyllm-core polyllm-openai        # crates.io 发布后可用；当前可 path 依赖或 git 依赖
+```
 
-## 当前范围
+```rust
+use std::sync::Arc;
+use polyllm_core::{create_llm, ClientConfig, ProviderConfig, UnifiedRequest, HttpTransport};
+use polyllm_openai::openai_plugin;
 
-`crates/polyllm-core`：
-- 统一协议类型（request/response/stream-chunk/usage/finish-reason，wire 字段名与 TS 一致）+ 请求形状校验
-- 稳定错误码 + 错误分类（`errors-timeout.json` 的十种触发：auth/permission/rate_limited/invalid_request/server/connection/parse/timeout/cancelled/unknown 与 retryable）
-- 参数策略引擎（镜像 `packages/core/src/params.ts`：strict 抛错、auto/lenient 清空能力并警告、auto 钳制 / lenient 取下限）
-- 模型注册表（snapshot → model → alias → normalized 四级解析，`AMBIGUOUS_MODEL`/`UNKNOWN_MODEL`/`DUPLICATE_*`）
-- 传输抽象（`HttpTransport` trait + `check_status` 状态门 + `resolve_provider_runtime`），默认 feature `http` 提供 blocking reqwest 实现
-- 显式重试（默认关闭；仅 retryable 类别；`Retry-After` 硬下限；deadline 预算；首块后不重放由插件流路径保证）
-- 客户端 `create_llm`（插件/供应商注册检查、unlisted 模型保守兜底、chat/chat_stream/list_provider_models）
-- 客户端侧流式工具调用重装器（协议 2.1：同 id 按到达顺序追加，空 delta 容忍）
-- `testing::MockTransport`（无网络测试）
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let llm = create_llm(
+        ClientConfig {
+            plugins: vec![openai_plugin()],
+            providers: [(
+                "openai".to_string(),
+                ProviderConfig { api_key_env: Some("OPENAI_API_KEY".to_string()), ..Default::default() },
+            )]
+            .into_iter()
+            .collect(),
+            ..ClientConfig::default()   // paramPolicy 默认 strict
+        },
+        Arc::new(polyllm_core::ReqwestTransport::new()),
+    )?;
 
-`crates/polyllm-openai`：
-- wire 映射（snapshot 模型名、`max_completion_tokens`/`max_tokens` 按 spec 字段选择、`stream_options.include_usage`、jsonMode → `response_format`）
-- 响应归一化（usage 缺省 → 零值 + `usageUnavailable` 标记）、流事件归一化（index 按位置兜底）
-- SSE/NDJSON 分帧（CRLF、多行 data、`[DONE]`、截断事件 → parse 错误、空 SSE → parse 错误）
-- OpenAI 插件（chat/chat_stream/list_models/create_model_spec）
+    let request: UnifiedRequest = serde_json::from_value(serde_json::json!({
+        "messages": [{ "role": "user", "content": "你好，PolyLLM" }]
+    }))?;
+    let response = llm.chat("openai:gpt-4o-mini", &request, &Default::default()).await?;
+    println!("{:?}", response.choices[0].message);
 
-## 契约测试（fixture 即裁判）
+    // 流式：返回 boxed async stream；drop 即取消（Rust 惯例）
+    let mut stream = llm.chat_stream("openai:gpt-4o-mini", &request, &Default::default())?;
+    while let Some(chunk) = stream.next().await {
+        if let Ok(chunk) = chunk {
+            if let Some(text) = &chunk.delta.content { print!("{text}"); }
+        }
+    }
+    Ok(())
+}
+```
+
+## Crate 结构（与 npm 包一一对应）
+
+| crate | 对应 npm 包 | 说明 |
+| --- | --- | --- |
+| `polyllm-core` | `@you-want/polyllm-core` | 统一协议、参数策略、注册表、错误分类、重试、客户端（async） |
+| `polyllm-openai` | `@you-want/polyllm-openai` | OpenAI Chat Completions 适配器 |
+| `polyllm-openai-compatible` | `@you-want/polyllm-openai-compatible` | 任意兼容网关 + OpenRouter/Qwen/Moonshot/Groq/vLLM/LiteLLM 预设 |
+| `polyllm-deepseek` | `@you-want/polyllm-deepseek` | DeepSeek 适配器 |
+| `polyllm-anthropic` | `@you-want/polyllm-anthropic` | Anthropic Messages API（system 提取、tool_use/tool_result、事件流状态机） |
+| `polyllm-gemini` | `@you-want/polyllm-gemini` | Gemini generateContent/streamGenerateContent（generationConfig 嵌套、data-URL 图片边界） |
+| `polyllm-ollama` | `@you-want/polyllm-ollama` | 本地 Ollama（无需 key、/api/tags 发现） |
+
+## 与 TS/Python 的一致性（fixture 即裁判）
+
+- 参数策略、模型解析等行为直接消费 `fixtures/protocol/*.json`（与 TS/Python 门禁同一份数据）。
+- 每家供应商的 wire 映射以对应 TS 包为规范逐行镜像，并有契约测试断言（Anthropic 事件流状态机、Gemini generationConfig 嵌套/图片边界、DeepSeek max_tokens 字段、Ollama tags 解析等）。
+- `cargo test`：44 项测试全绿；`cargo clippy -D warnings`、`cargo fmt --check` 干净；CI 门禁 `.github/workflows/rust.yml`。
+
+## 0.1.0 的已知边界（诚实清单）
+
+- **async 优先**：客户端为 tokio async；暂无 blocking 封装（需要时用 `futures::executor::block_on` 或自建 runtime）。
+- **流式取消**是 drop-based（丢弃 stream 即取消）；无独立 CancellationToken。
+- **流式重试**近似 TS 语义：只重试连接建立 + HTTP 状态（首块之后永不重放），未做到 TS 的「重试到首个可解析 chunk」。
+- **未发布 crates.io**：`cargo add` 需等首次发布（见下）。
+
+## crates.io 发布（待维护者执行）
+
+7 个 crate 版本已冻结 0.1.0、元数据齐全。发布需要 crates.io 账号：
 
 ```bash
 cd rust
-cargo test          # 28 项全绿
-cargo clippy --all-targets   # 0 警告
+cargo login "$CRATES_IO_TOKEN"
+cargo publish -p polyllm-core --dry-run     # 预检
+cargo publish -p polyllm-core
+cargo publish -p polyllm-openai             # 依赖 path 需改为版本依赖后按依赖序发布
 ```
 
-| 测试 | 消费的共享 fixture |
-| --- | --- |
-| `param_policy_fixture`（core） | `param-policy.json`（含「警告但仍发送」变异守卫） |
-| `fixtures_contract`（openai） | `models.json` · `messages.json` · `json-mode.json` · `response.json` · `tools.json` · `stream-framing.json` · `errors-timeout.json` |
-| `client_mock`（openai） | 无网络集成：wire 断言、错误码、unlisted 兜底、SSE 流、重试 |
-
-## 边界（明确不做）
-
-- 不发布 crates.io，不进入 `pnpm verify:stability` 的 TS/Python 发布链；有独立 CI 门禁（`.github/workflows/rust.yml`：fmt / clippy / test），fixtures 变更会触发
-- 无 Gemini/Anthropic/DeepSeek 插件（OpenAI Chat Completions 一个协议先行）
-- 流式取消（AbortSignal 等价物）与 listModels 统一超时预算的跨语言对齐未做
-- Go/Java 仍按 roadmap 暂缓
+注意：workspace 内 crates 目前用 path 依赖，正式发布前把 `path = "../polyllm-core"` 保留的同时加 `version = "0.1.0"`（cargo 允许两者共存），再按 core → openai → openai-compatible / deepseek / ollama / anthropic / gemini 的依赖序发布。
