@@ -6,8 +6,8 @@ license.workspace = true
 description = "PolyLLM Ollama local adapter (Rust implementation, experimental)."
 
 [dependencies]
-polyllm-core = { path = "../polyllm-core" }
-polyllm-openai = { path = "../polyllm-openai" }
+polyllm-core = { version = "0.1.0", path = "../polyllm-core" }
+polyllm-openai = { version = "0.1.0", path = "../polyllm-openai" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

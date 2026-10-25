@@ -6,7 +6,7 @@ license.workspace = true
 description = "PolyLLM Google Gemini REST adapter (Rust implementation, experimental)."
 
 [dependencies]
-polyllm-core = { path = "../polyllm-core" }
+polyllm-core = { version = "0.1.0", path = "../polyllm-core" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
