@@ -6,7 +6,7 @@
 //! Retries apply only before any stream output — a partial answer is never
 //! replayed.
 
-use std::thread;
+use std::future::Future;
 use std::time::Instant;
 
 use serde_json::json;
@@ -32,36 +32,40 @@ pub fn validate_retry_policy(policy: Option<&RetryPolicy>) -> Result<(), PolyLLM
     for (key, value, must_be_integer) in checks {
         if let Some(value) = value {
             if !value.is_finite() || value < 0.0 || (must_be_integer && value.fract() != 0.0) {
-                return Err(PolyLLMError::with_details(
-                    ErrorCode::InvalidConfig,
-                    format!("无效的重试配置: {key}"),
-                    json!({ "parameter": key }),
-                ));
+                return Err(invalid_policy(key));
             }
             if key == "backoffFactor" && value == 0.0 {
-                return Err(PolyLLMError::with_details(
-                    ErrorCode::InvalidConfig,
-                    "无效的重试配置: backoffFactor",
-                    json!({ "parameter": "backoffFactor" }),
-                ));
+                return Err(invalid_policy(key));
             }
             if key == "jitter" && value > 1.0 {
-                return Err(PolyLLMError::with_details(
-                    ErrorCode::InvalidConfig,
-                    "无效的重试配置: jitter",
-                    json!({ "parameter": "jitter" }),
-                ));
+                return Err(invalid_policy(key));
             }
         }
     }
     Ok(())
 }
 
-fn max_attempts(policy: Option<&RetryPolicy>) -> u32 {
+fn invalid_policy(key: &str) -> PolyLLMError {
+    PolyLLMError::with_details(
+        ErrorCode::InvalidConfig,
+        format!("无效的重试配置: {key}"),
+        json!({ "parameter": key }),
+    )
+}
+
+pub fn attempt_limit(policy: Option<&RetryPolicy>) -> u32 {
     policy
         .and_then(|p| p.max_attempts)
         .unwrap_or(DEFAULT_RETRY_MAX_ATTEMPTS)
         + 1
+}
+
+pub(crate) fn budget_exhausted_error(retried: bool) -> PolyLLMError {
+    PolyLLMError::with_details(
+        ErrorCode::ProviderError,
+        "重试预算耗尽",
+        json!({ "category": "timeout", "retryable": false, "retried": retried }),
+    )
 }
 
 /// Backoff delay for a retry attempt. `retry_after_seconds` (a valid
@@ -97,25 +101,21 @@ pub fn compute_backoff_ms(
     (delay.min(max_delay)).round() as u64
 }
 
-fn budget_exhausted_error(retried: bool) -> PolyLLMError {
-    PolyLLMError::with_details(
-        ErrorCode::ProviderError,
-        "重试预算耗尽",
-        json!({ "category": "timeout", "retryable": false, "retried": retried }),
-    )
-}
-
-/// Run a blocking operation with the retry policy. Retries only when the
-/// error carries a retryable category; stops early once the deadline is out
+/// Run an async operation with the retry policy. Retries only when the error
+/// carries a retryable category; stops early once the deadline is out
 /// (surfaced as `timeout`). Returns `(result, attempts)`.
-pub fn with_retries<T>(
-    mut operation: impl FnMut(u32) -> Result<T, PolyLLMError>,
+pub async fn with_retries<T, F, Fut>(
+    mut operation: F,
     policy: Option<&RetryPolicy>,
     deadline_ms: Option<u64>,
-) -> Result<(T, u32), PolyLLMError> {
+) -> Result<(T, u32), PolyLLMError>
+where
+    F: FnMut(u32) -> Fut,
+    Fut: Future<Output = Result<T, PolyLLMError>>,
+{
     validate_retry_policy(policy)?;
     let limit = if policy.is_some() {
-        max_attempts(policy)
+        attempt_limit(policy)
     } else {
         1
     };
@@ -127,7 +127,7 @@ pub fn with_retries<T>(
                 return Err(budget_exhausted_error(attempt > 1));
             }
         }
-        match operation(attempt) {
+        match operation(attempt).await {
             Ok(result) => return Ok((result, attempt)),
             Err(error) => {
                 let retry_after = error
@@ -149,7 +149,8 @@ pub fn with_retries<T>(
                                 }
                             }
                             if delay_ms > 0 {
-                                thread::sleep(std::time::Duration::from_millis(delay_ms));
+                                tokio::time::sleep(std::time::Duration::from_millis(delay_ms))
+                                    .await;
                             }
                             continue;
                         }
@@ -166,6 +167,9 @@ pub fn with_retries<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    use crate::error::ErrorCode;
 
     fn err_with_category(category: &str, retry_after: Option<u64>) -> PolyLLMError {
         let mut details = json!({ "category": category, "retryable": true });
@@ -199,50 +203,53 @@ mod tests {
         assert_eq!(high, 625); // 500 * 1.25
     }
 
-    #[test]
-    fn non_retryable_errors_surface_immediately() {
+    #[tokio::test]
+    async fn non_retryable_errors_surface_immediately() {
         let mut calls = 0;
         let result: Result<((), u32), PolyLLMError> = with_retries(
             |_| {
                 calls += 1;
-                Err(err_with_category("auth", None))
+                async { Err(err_with_category("auth", None)) }
             },
             Some(&RetryPolicy::default()),
             None,
-        );
+        )
+        .await;
         assert!(result.is_err());
         assert_eq!(calls, 1);
     }
 
-    #[test]
-    fn retryable_errors_respect_the_attempt_limit() {
+    #[tokio::test]
+    async fn retryable_errors_respect_the_attempt_limit() {
         let mut calls = 0;
         let result: Result<((), u32), PolyLLMError> = with_retries(
             |_| {
                 calls += 1;
-                Err(err_with_category("server", None))
+                async { Err(err_with_category("server", None)) }
             },
             Some(&RetryPolicy {
                 base_delay_ms: Some(0),
                 ..RetryPolicy::default()
             }),
             None,
-        );
+        )
+        .await;
         assert!(result.is_err());
         assert_eq!(calls, 3); // default: 2 retries + initial attempt
     }
 
-    #[test]
-    fn no_policy_means_single_attempt() {
+    #[tokio::test]
+    async fn no_policy_means_single_attempt() {
         let mut calls = 0;
         let result: Result<((), u32), PolyLLMError> = with_retries(
             |_| {
                 calls += 1;
-                Err(err_with_category("server", None))
+                async { Err(err_with_category("server", None)) }
             },
             None,
             None,
-        );
+        )
+        .await;
         assert!(result.is_err());
         assert_eq!(calls, 1);
     }

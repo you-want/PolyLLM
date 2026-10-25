@@ -3,8 +3,9 @@
 //! comment lines as metadata, errors on unknown fields, requires at least one
 //! SSE field, and stops at `[DONE]`. NDJSON emits one JSON object per line.
 
-use polyllm_core::provider_parse_error;
 use serde_json::Value;
+
+use crate::error::{provider_parse_error, PolyLLMError};
 
 pub enum Payload {
     Event(Value),
@@ -13,27 +14,28 @@ pub enum Payload {
 }
 
 pub struct EventFramer {
+    provider: &'static str,
     ndjson: bool,
     data: Vec<String>,
     saw_field: bool,
 }
 
 impl EventFramer {
-    pub fn new(wire: &str) -> Self {
+    pub fn new(provider: &'static str, wire: &str) -> Self {
         EventFramer {
+            provider,
             ndjson: wire.contains("ndjson"),
             data: Vec::new(),
             saw_field: false,
         }
     }
 
-    fn payload(&mut self, line: &str) -> Result<Payload, polyllm_core::PolyLLMError> {
-        const PROVIDER: &str = "openai";
+    fn payload(&mut self, line: &str) -> Result<Payload, PolyLLMError> {
         if self.ndjson {
             return if line.trim().is_empty() {
                 Ok(Payload::Nothing)
             } else {
-                decode(line, PROVIDER)
+                decode(line, self.provider)
             };
         }
         if line.is_empty() {
@@ -42,7 +44,7 @@ impl EventFramer {
             }
             let joined = self.data.join("\n");
             self.data.clear();
-            return decode(&joined, PROVIDER);
+            return decode(&joined, self.provider);
         }
         if let Some(rest) = line.strip_prefix("data:") {
             self.data
@@ -60,39 +62,39 @@ impl EventFramer {
         }
         if !line.trim().is_empty() {
             return Err(provider_parse_error(
-                PROVIDER,
-                format!("openai: 无效的 SSE 字段: {line}"),
+                self.provider,
+                format!("{}: 无效的 SSE 字段: {line}", self.provider),
             ));
         }
         Ok(Payload::Nothing)
     }
 
     /// Feed one complete line (already CRLF-stripped by the caller).
-    pub fn feed_line(&mut self, line: &str) -> Result<Payload, polyllm_core::PolyLLMError> {
-        match self.payload(line)? {
-            Payload::Event(value) => Ok(Payload::Event(value)),
-            other => Ok(other),
-        }
+    pub fn feed_line(&mut self, line: &str) -> Result<Payload, PolyLLMError> {
+        self.payload(line)
     }
 
     /// End-of-stream flush, mirroring the TS tail handling: any pending
     /// multi-line `data` payload is decoded here (a truncated final event
     /// therefore fails as a parse error), and an SSE stream with no fields at
     /// all is an error.
-    pub fn finish(&mut self) -> Result<Payload, polyllm_core::PolyLLMError> {
+    pub fn finish(&mut self) -> Result<Payload, PolyLLMError> {
         if !self.ndjson && !self.saw_field {
-            return Err(provider_parse_error("openai", "openai: Empty SSE response"));
+            return Err(provider_parse_error(
+                self.provider,
+                format!("{}: Empty SSE response", self.provider),
+            ));
         }
         if !self.ndjson && !self.data.is_empty() {
             let joined = self.data.join("\n");
             self.data.clear();
-            return decode(&joined, "openai");
+            return decode(&joined, self.provider);
         }
         Ok(Payload::Nothing)
     }
 }
 
-fn decode(value: &str, provider: &str) -> Result<Payload, polyllm_core::PolyLLMError> {
+fn decode(value: &str, provider: &str) -> Result<Payload, PolyLLMError> {
     if value == "[DONE]" {
         return Ok(Payload::Done);
     }
@@ -107,16 +109,20 @@ fn decode(value: &str, provider: &str) -> Result<Payload, polyllm_core::PolyLLME
     Ok(Payload::Event(event))
 }
 
-/// Pure helper over a full raw body (used by the shared stream-framing
-/// fixture); the transport path feeds lines through `EventFramer` instead.
-pub fn parse_raw_events(raw: &str, wire: &str) -> Result<Vec<Value>, polyllm_core::PolyLLMError> {
+/// Pure helper over a full raw body (fixture testing); the transport path
+/// feeds lines through `EventFramer` instead.
+pub fn parse_raw_events(
+    provider: &'static str,
+    raw: &str,
+    wire: &str,
+) -> Result<Vec<Value>, PolyLLMError> {
     let ndjson = wire.contains("ndjson");
-    let mut framer = EventFramer::new(wire);
+    let mut framer = EventFramer::new(provider, wire);
     let mut events = Vec::new();
     let process = |line: &str,
                    framer: &mut EventFramer,
                    events: &mut Vec<Value>|
-     -> Result<(), polyllm_core::PolyLLMError> {
+     -> Result<(), PolyLLMError> {
         match framer.feed_line(line)? {
             Payload::Event(event) => events.push(event),
             Payload::Done => {}
@@ -124,12 +130,10 @@ pub fn parse_raw_events(raw: &str, wire: &str) -> Result<Vec<Value>, polyllm_cor
         }
         Ok(())
     };
-    if ndjson {
-        for line in raw.split('\n') {
+    for line in raw.split('\n') {
+        if ndjson {
             process(line, &mut framer, &mut events)?;
-        }
-    } else {
-        for line in raw.split('\n') {
+        } else {
             process(line.trim_end_matches('\r'), &mut framer, &mut events)?;
         }
     }

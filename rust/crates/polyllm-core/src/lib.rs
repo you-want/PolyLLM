@@ -19,6 +19,7 @@ pub mod params;
 pub mod plugin;
 pub mod registry;
 pub mod retry;
+pub mod sse;
 pub mod stream_accumulator;
 pub mod testing;
 pub mod types;
@@ -29,14 +30,15 @@ pub use error::{
     provider_transport_error, ErrorCategory, ErrorCode, PolyLLMError,
 };
 pub use http::{
-    check_status, resolve_provider_runtime, HttpRequest, HttpResponse, HttpTransport, Method,
-    StreamHandle,
+    check_status, open_stream_with_retry, read_lines, resolve_provider_runtime, HttpRequest,
+    HttpResponse, HttpTransport, Method, StreamHandle,
 };
 pub use model_id::{parse_model_id, ModelId};
 pub use params::{validate_and_map_params, ParamValidationResult};
-pub use plugin::LLMPlugin;
+pub use plugin::{LLMPlugin, PluginStream};
 pub use registry::ModelRegistry;
-pub use retry::{compute_backoff_ms, with_retries};
+pub use retry::{attempt_limit, compute_backoff_ms, with_retries};
+pub use sse::{parse_raw_events, EventFramer, Payload};
 pub use stream_accumulator::{AssembledToolCall, StreamAccumulator};
 pub use types::{
     Capabilities, ChatContext, ChatOptions, ContentPart, FinishReason, ImageDetail, ImageUrl,

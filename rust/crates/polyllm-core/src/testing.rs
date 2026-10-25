@@ -3,13 +3,17 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
+use futures::stream::{self, StreamExt};
+
 use crate::error::PolyLLMError;
 use crate::http::{HttpRequest, HttpResponse, HttpTransport, StreamHandle};
 
 pub enum MockAction {
     /// HTTP response with status and (JSON or arbitrary) body.
     Json(u16, String),
-    /// Streaming response with status and raw text chunks.
+    /// Streaming response with status and raw text chunks (arbitrary byte
+    /// boundaries — the plugin framer must cope).
     Stream(u16, Vec<String>),
     /// Transport-level failure (connection / timeout / cancelled).
     Err(PolyLLMError),
@@ -37,10 +41,11 @@ impl MockTransport {
     }
 }
 
+#[async_trait]
 impl HttpTransport for MockTransport {
-    fn send_json(&self, request: &HttpRequest) -> Result<HttpResponse, PolyLLMError> {
+    async fn send_json(&self, request: HttpRequest) -> Result<HttpResponse, PolyLLMError> {
         self.seen_requests.lock().unwrap().push(request.clone());
-        match (self.action)(request) {
+        match (self.action)(&request) {
             MockAction::Json(status, body) => Ok(HttpResponse {
                 status,
                 headers: Vec::new(),
@@ -55,21 +60,24 @@ impl HttpTransport for MockTransport {
         }
     }
 
-    fn send_stream(&self, request: &HttpRequest) -> Result<StreamHandle, PolyLLMError> {
+    async fn send_stream(&self, request: HttpRequest) -> Result<StreamHandle, PolyLLMError> {
         self.seen_requests.lock().unwrap().push(request.clone());
-        match (self.action)(request) {
+        match (self.action)(&request) {
             MockAction::Stream(status, chunks) => {
-                let mut iter = chunks.into_iter();
+                let chunk_bytes: Vec<Result<Vec<u8>, PolyLLMError>> = chunks
+                    .into_iter()
+                    .map(|chunk| Ok(chunk.into_bytes()))
+                    .collect();
                 Ok(StreamHandle {
                     status,
                     headers: Vec::new(),
-                    chunks: Box::new(std::iter::from_fn(move || iter.next())),
+                    chunks: stream::iter(chunk_bytes).boxed(),
                 })
             }
             MockAction::Json(status, body) => Ok(StreamHandle {
                 status,
                 headers: Vec::new(),
-                chunks: Box::new(std::iter::once(body)),
+                chunks: stream::iter(vec![Ok(body.into_bytes())]).boxed(),
             }),
             MockAction::Err(error) => Err(error),
         }

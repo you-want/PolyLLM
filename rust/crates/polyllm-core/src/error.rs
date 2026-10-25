@@ -201,6 +201,34 @@ pub fn provider_transport_error(
     )
 }
 
+/// Transport failure classification for drivers that surface IO errors:
+/// reqwest timeouts map to `timeout`, connect failures to `connection`.
+pub fn classify_transport_error(
+    provider: &str,
+    is_timeout: bool,
+    is_connect: bool,
+) -> PolyLLMError {
+    if is_timeout {
+        provider_transport_error(
+            provider,
+            ErrorCategory::Timeout,
+            format!("{provider}: 请求超时"),
+        )
+    } else if is_connect {
+        provider_transport_error(
+            provider,
+            ErrorCategory::Connection,
+            format!("{provider}: 连接失败"),
+        )
+    } else {
+        provider_transport_error(
+            provider,
+            ErrorCategory::Connection,
+            format!("{provider}: 传输失败"),
+        )
+    }
+}
+
 pub fn provider_parse_error(provider: &str, message: impl Into<String>) -> PolyLLMError {
     PolyLLMError::with_details(
         ErrorCode::ProviderError,

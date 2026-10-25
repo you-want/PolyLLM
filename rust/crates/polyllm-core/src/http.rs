@@ -1,13 +1,14 @@
 //! Transport abstraction. Plugins never touch an HTTP client directly — they
 //! issue `HttpRequest`s through the transport injected by the client, so tests
 //! can substitute `crate::testing::MockTransport` and the retry/timeout
-//! semantics stay in one place.
+//! semantics stay in one place. All IO is async (tokio); a blocking wrapper is
+//! deliberately out of scope for 0.1.0.
 
+use async_trait::async_trait;
+use futures::stream::{BoxStream, StreamExt};
 use serde_json::json;
 
-use crate::error::{
-    provider_http_error, provider_transport_error, ErrorCategory, ErrorCode, PolyLLMError,
-};
+use crate::error::{classify_transport_error, provider_http_error, ErrorCode, PolyLLMError};
 use crate::types::{ProviderConfig, ProviderRuntime};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,33 +35,39 @@ pub struct HttpResponse {
 
 impl HttpResponse {
     pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers
-            .iter()
-            .find(|(key, _)| key.eq_ignore_ascii_case(name))
-            .map(|(_, value)| value.as_str())
+        header_value(&self.headers, name)
     }
 }
 
-/// Raw text chunks of a streaming body (already UTF-8 decoded). Chunk
-/// boundaries are arbitrary; framing is the plugin parser's job.
+pub fn header_value<'a>(headers: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    headers
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(name))
+        .map(|(_, value)| value.as_str())
+}
+
+/// Raw byte chunks of a streaming body. Chunk boundaries are arbitrary and may
+/// split UTF-8 codepoints — line-oriented framing in the plugins decodes only
+/// complete lines, which is always UTF-8-safe (`\n` can never appear inside a
+/// multi-byte sequence).
 pub struct StreamHandle {
     pub status: u16,
     pub headers: Vec<(String, String)>,
-    pub chunks: Box<dyn Iterator<Item = String> + Send>,
+    pub chunks: BoxStream<'static, Result<Vec<u8>, PolyLLMError>>,
 }
 
 impl StreamHandle {
     pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers
-            .iter()
-            .find(|(key, _)| key.eq_ignore_ascii_case(name))
-            .map(|(_, value)| value.as_str())
+        header_value(&self.headers, name)
     }
 }
 
+pub type BoxStreamResult<T> = BoxStream<'static, Result<T, PolyLLMError>>;
+
+#[async_trait]
 pub trait HttpTransport: Send + Sync {
-    fn send_json(&self, request: &HttpRequest) -> Result<HttpResponse, PolyLLMError>;
-    fn send_stream(&self, request: &HttpRequest) -> Result<StreamHandle, PolyLLMError>;
+    async fn send_json(&self, request: HttpRequest) -> Result<HttpResponse, PolyLLMError>;
+    async fn send_stream(&self, request: HttpRequest) -> Result<StreamHandle, PolyLLMError>;
 }
 
 /// Shared HTTP-status gate: mirrors TS `checkedFetch` — a non-2xx status
@@ -74,19 +81,19 @@ pub fn check_status(
     if (200..300).contains(&status) {
         return Ok(());
     }
-    let retry_after = headers
-        .iter()
-        .find(|(key, _)| key.eq_ignore_ascii_case("retry-after"))
-        .and_then(|(_, value)| value.trim().parse::<u64>().ok());
+    let retry_after =
+        header_value(headers, "retry-after").and_then(|value| value.trim().parse::<u64>().ok());
     Err(provider_http_error(provider, status, retry_after, body))
 }
 
 /// Mirrors TS `resolveProviderRuntime`: explicit `apiKey` wins, else the env
-/// var named by `apiKeyEnv`; an empty key is `MISSING_API_KEY`.
+/// var named by `apiKeyEnv`; an empty key is `MISSING_API_KEY`. Providers
+/// that legitimately need no key (Ollama) pass `allow_missing_key`.
 pub fn resolve_provider_runtime(
     provider: &str,
     config: &ProviderConfig,
     default_base_url: &str,
+    allow_missing_key: bool,
 ) -> Result<ProviderRuntime, PolyLLMError> {
     let api_key = match &config.api_key {
         Some(key) => key.clone(),
@@ -95,7 +102,7 @@ pub fn resolve_provider_runtime(
             None => String::new(),
         },
     };
-    if api_key.is_empty() {
+    if api_key.is_empty() && !allow_missing_key {
         return Err(PolyLLMError::with_details(
             ErrorCode::MissingApiKey,
             format!(
@@ -124,59 +131,144 @@ pub fn resolve_provider_runtime(
     })
 }
 
-/// Transport failure classification for drivers that surface IO errors:
-/// reqwest timeouts map to `timeout`, connect failures to `connection`.
-pub fn classify_transport_error(
+/// Establish a streaming connection with retry applied to the connection
+/// phase only (TS retries until the first parsed chunk; 0.1.0 approximates
+/// this by retrying connect + status, never replaying body bytes).
+pub async fn open_stream_with_retry<F>(
     provider: &str,
-    is_timeout: bool,
-    is_connect: bool,
-) -> PolyLLMError {
-    if is_timeout {
-        provider_transport_error(
-            provider,
-            ErrorCategory::Timeout,
-            format!("{provider}: 请求超时"),
-        )
-    } else if is_connect {
-        provider_transport_error(
-            provider,
-            ErrorCategory::Connection,
-            format!("{provider}: 连接失败"),
-        )
-    } else {
-        provider_transport_error(
-            provider,
-            ErrorCategory::Connection,
-            format!("{provider}: 传输失败"),
-        )
+    transport: &dyn HttpTransport,
+    build_request: F,
+    policy: Option<&crate::types::RetryPolicy>,
+    deadline_ms: Option<u64>,
+) -> Result<StreamHandle, PolyLLMError>
+where
+    F: Fn(u32) -> HttpRequest,
+{
+    let started = std::time::Instant::now();
+    let limit = crate::retry::attempt_limit(policy);
+    for attempt in 1..=limit {
+        if let Some(deadline) = deadline_ms {
+            if started.elapsed().as_millis() as u64 >= deadline {
+                return Err(crate::retry::budget_exhausted_error(attempt > 1));
+            }
+        }
+        match transport.send_stream(build_request(attempt)).await {
+            Ok(handle) => {
+                // Status check happens here so retryable HTTP errors (429/5xx)
+                // are retried before the caller starts reading the body.
+                if let Err(error) = check_status(provider, handle.status, &handle.headers, "") {
+                    let retryable = error
+                        .category()
+                        .map(crate::error::is_retryable_category)
+                        .unwrap_or(false);
+                    let last = attempt >= limit;
+                    if !last && retryable {
+                        let retry_after = error
+                            .details
+                            .get("retryAfterSeconds")
+                            .and_then(serde_json::Value::as_u64);
+                        let delay =
+                            crate::retry::compute_backoff_ms(policy, retry_after, attempt, &|| 0.0);
+                        if let Some(deadline) = deadline_ms {
+                            let remaining =
+                                deadline.saturating_sub(started.elapsed().as_millis() as u64);
+                            if remaining == 0 || delay >= remaining {
+                                return Err(crate::retry::budget_exhausted_error(attempt > 1));
+                            }
+                        }
+                        if delay > 0 {
+                            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                        }
+                        continue;
+                    }
+                    return Err(error);
+                }
+                return Ok(handle);
+            }
+            Err(error) => {
+                let retryable = error
+                    .category()
+                    .map(crate::error::is_retryable_category)
+                    .unwrap_or(false);
+                let last = attempt >= limit;
+                if !last && retryable {
+                    let delay = crate::retry::compute_backoff_ms(policy, None, attempt, &|| 0.0);
+                    if let Some(deadline) = deadline_ms {
+                        let remaining =
+                            deadline.saturating_sub(started.elapsed().as_millis() as u64);
+                        if remaining == 0 || delay >= remaining {
+                            return Err(crate::retry::budget_exhausted_error(attempt > 1));
+                        }
+                    }
+                    if delay > 0 {
+                        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                    }
+                    continue;
+                }
+                return Err(error);
+            }
+        }
     }
+    Err(crate::retry::budget_exhausted_error(true))
+}
+
+/// Decode a streaming byte body into complete lines (UTF-8-safe: `\n` can
+/// never occur inside a multi-byte UTF-8 sequence, so splitting lines on bytes
+/// then decoding whole lines never splits a codepoint). The trailing partial
+/// line, if any, is emitted at stream end.
+pub fn read_lines(handle: StreamHandle) -> BoxStream<'static, Result<String, PolyLLMError>> {
+    let s = async_stream::stream! {
+        let mut handle = handle;
+        let mut bytes: Vec<u8> = Vec::new();
+            while let Some(chunk) = handle.chunks.next().await {
+                match chunk {
+                    Err(error) => {
+                        yield Err(error);
+                        return;
+                    }
+                    Ok(data) => bytes.extend_from_slice(&data),
+                }
+            while let Some(position) = bytes.iter().position(|&b| b == b'\n') {
+                let mut line: Vec<u8> = bytes.drain(..=position).collect();
+                line.pop();
+                if line.last() == Some(&b'\r') {
+                    line.pop();
+                }
+                yield Ok(String::from_utf8_lossy(&line).into_owned());
+            }
+            }
+        if !bytes.is_empty() {
+            if bytes.last() == Some(&b'\r') {
+                bytes.pop();
+            }
+            yield Ok(String::from_utf8_lossy(&bytes).into_owned());
+        }
+    };
+    s.boxed()
 }
 
 #[cfg(feature = "http")]
 mod reqwest_transport {
-    use std::io::Read;
-
     use super::{classify_transport_error, HttpRequest, HttpResponse, HttpTransport, StreamHandle};
     use crate::error::PolyLLMError;
+    use async_trait::async_trait;
+    use futures::StreamExt;
 
-    /// Default blocking transport. One total budget covers headers, body and
+    /// Default async transport. One total budget covers headers, body and
     /// every retry — enforced via the client timeout, mirroring the TS
-    /// single-deadline semantics for the non-retry path.
+    /// single-deadline semantics.
     pub struct ReqwestTransport {
-        client: reqwest::blocking::Client,
+        client: reqwest::Client,
     }
 
     impl ReqwestTransport {
         pub fn new() -> Self {
             ReqwestTransport {
-                client: reqwest::blocking::Client::new(),
+                client: reqwest::Client::new(),
             }
         }
 
-        fn execute(
-            &self,
-            request: &HttpRequest,
-        ) -> Result<reqwest::blocking::Response, PolyLLMError> {
+        async fn execute(&self, request: &HttpRequest) -> Result<reqwest::Response, PolyLLMError> {
             let method = match request.method {
                 super::Method::Get => reqwest::Method::GET,
                 super::Method::Post => reqwest::Method::POST,
@@ -190,7 +282,7 @@ mod reqwest_transport {
             if let Some(body) = &request.body {
                 builder = builder.body(body.clone());
             }
-            builder.send().map_err(|error| {
+            builder.send().await.map_err(|error| {
                 classify_transport_error("http", error.is_timeout(), error.is_connect())
             })
         }
@@ -202,9 +294,10 @@ mod reqwest_transport {
         }
     }
 
+    #[async_trait]
     impl HttpTransport for ReqwestTransport {
-        fn send_json(&self, request: &HttpRequest) -> Result<HttpResponse, PolyLLMError> {
-            let response = self.execute(request)?;
+        async fn send_json(&self, request: HttpRequest) -> Result<HttpResponse, PolyLLMError> {
+            let response = self.execute(&request).await?;
             let status = response.status().as_u16();
             let headers = response
                 .headers()
@@ -216,7 +309,7 @@ mod reqwest_transport {
                     )
                 })
                 .collect();
-            let body = response.text().map_err(|error| {
+            let body = response.text().await.map_err(|error| {
                 classify_transport_error("http", error.is_timeout(), error.is_connect())
             })?;
             Ok(HttpResponse {
@@ -226,8 +319,8 @@ mod reqwest_transport {
             })
         }
 
-        fn send_stream(&self, request: &HttpRequest) -> Result<StreamHandle, PolyLLMError> {
-            let response = self.execute(request)?;
+        async fn send_stream(&self, request: HttpRequest) -> Result<StreamHandle, PolyLLMError> {
+            let response = self.execute(&request).await?;
             let status = response.status().as_u16();
             let headers = response
                 .headers()
@@ -239,23 +332,14 @@ mod reqwest_transport {
                     )
                 })
                 .collect();
-            let chunks: Box<dyn Iterator<Item = String> + Send> = {
-                let mut reader = response;
-                let mut buffer: Vec<u8> = Vec::new();
-                Box::new(std::iter::from_fn(move || {
-                    let mut buf = [0u8; 8192];
-                    match reader.read(&mut buf) {
-                        Ok(0) => None,
-                        Ok(n) => {
-                            buffer.extend_from_slice(&buf[..n]);
-                            let text = String::from_utf8_lossy(&buffer).into_owned();
-                            buffer.clear();
-                            Some(text)
-                        }
-                        Err(_) => None,
-                    }
-                }))
-            };
+            let chunks = response
+                .bytes_stream()
+                .map(|bytes| {
+                    bytes.map(|b| b.to_vec()).map_err(|error| {
+                        classify_transport_error("http", error.is_timeout(), error.is_connect())
+                    })
+                })
+                .boxed();
             Ok(StreamHandle {
                 status,
                 headers,

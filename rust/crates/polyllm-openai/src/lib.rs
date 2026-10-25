@@ -4,12 +4,10 @@
 
 pub mod models;
 pub mod plugin;
-pub mod sse;
 pub mod wire;
 
 pub use models::openai_models;
-pub use plugin::{openai_plugin, OpenAIPlugin};
-pub use sse::{parse_raw_events, EventFramer, Payload};
+pub use plugin::{openai_family_stream, openai_plugin, OpenAIPlugin};
 pub use wire::{
     build_openai_request_body, endpoint, map_finish_reason, parse_openai_models_response,
     parse_openai_response, parse_openai_stream_event, DEFAULT_BASE_URL,

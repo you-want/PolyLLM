@@ -10,3 +10,7 @@ polyllm-core = { path = "../polyllm-core" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+async-trait = { workspace = true }
+async-stream = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }

@@ -443,4 +443,9 @@ impl ChatContext {
     pub fn transport(&self) -> &dyn HttpTransport {
         self.transport.as_ref()
     }
+
+    /// Clone the transport handle for `'static` plugin streams.
+    pub fn transport_arc(&self) -> std::sync::Arc<dyn HttpTransport> {
+        std::sync::Arc::clone(&self.transport)
+    }
 }

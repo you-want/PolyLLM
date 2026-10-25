@@ -1,0 +1,16 @@
+[package]
+name = "polyllm-openai-compatible"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PolyLLM OpenAI-compatible gateway adapter with presets (Rust implementation, experimental)."
+
+[dependencies]
+polyllm-core = { path = "../polyllm-core" }
+polyllm-openai = { path = "../polyllm-openai" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+async-stream = { workspace = true }
+futures = { workspace = true }

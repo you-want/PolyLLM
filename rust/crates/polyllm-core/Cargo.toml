@@ -13,4 +13,8 @@ http = ["dep:reqwest"]
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-reqwest = { version = "0.12", optional = true, default-features = false, features = ["blocking", "json", "rustls-tls"] }
+async-trait = { workspace = true }
+async-stream = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true, optional = true }

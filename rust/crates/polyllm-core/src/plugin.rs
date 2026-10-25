@@ -1,5 +1,11 @@
 //! Plugin contract (mirrors TS `LLMPlugin`). Providers implement wire mapping
 //! and parsing; the client owns resolution, param policy, transport, retry.
+//! Streaming returns a boxed async stream: pre-stream failures (auth, HTTP
+//! status, connection) surface as the outer `Err`, mid-stream failures
+//! (parse) as per-item `Err`s inside the stream.
+
+use async_trait::async_trait;
+use futures::stream::BoxStream;
 
 use crate::error::{ErrorCode, PolyLLMError};
 use crate::http::HttpTransport;
@@ -9,27 +15,29 @@ use crate::types::{
 };
 use std::sync::Arc;
 
+pub type PluginStream = BoxStream<'static, Result<UnifiedStreamChunk, PolyLLMError>>;
+
+#[async_trait]
 pub trait LLMPlugin: Send + Sync {
     fn provider(&self) -> &str;
 
     fn models(&self) -> Vec<ModelSpec>;
 
-    fn chat(
+    async fn chat(
         &self,
         request: &UnifiedRequest,
         config: &ProviderConfig,
         context: &ChatContext,
     ) -> Result<UnifiedResponse, PolyLLMError>;
 
-    /// Streaming chat. Sink-based (blocking core); the default mirrors the TS
-    /// client's behavior of refusing streams for stream-less plugins.
+    /// Streaming chat. The default mirrors the TS client's behavior of
+    /// refusing streams for stream-less plugins.
     fn chat_stream(
         &self,
         _request: &UnifiedRequest,
         _config: &ProviderConfig,
         _context: &ChatContext,
-        _sink: &mut dyn FnMut(UnifiedStreamChunk),
-    ) -> Result<(), PolyLLMError> {
+    ) -> Result<PluginStream, PolyLLMError> {
         Err(PolyLLMError::with_details(
             ErrorCode::UnsupportedParameter,
             format!("插件 {} 不支持流式输出", self.provider()),
@@ -39,7 +47,7 @@ pub trait LLMPlugin: Send + Sync {
 
     /// Live model discovery; providers without a discovery endpoint keep the
     /// default refusal (`UNSUPPORTED_PARAMETER` at call time).
-    fn list_models(
+    async fn list_models(
         &self,
         _config: &ProviderConfig,
         _timeout_ms: Option<u64>,

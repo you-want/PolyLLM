@@ -3,12 +3,12 @@
 //! diverges from the released languages, these tests fail.
 
 use polyllm_core::{
-    validate_and_map_params, Capabilities, ErrorCode, ModelParams, ModelRegistry, ModelSpec,
-    NumericParam, ParamPolicy, StreamAccumulator, UnifiedRequest,
+    parse_raw_events, validate_and_map_params, Capabilities, ErrorCode, ModelParams, ModelRegistry,
+    ModelSpec, NumericParam, ParamPolicy, StreamAccumulator, UnifiedRequest,
 };
 use polyllm_openai::{
     build_openai_request_body, openai_models, openai_plugin, parse_openai_response,
-    parse_openai_stream_event, parse_raw_events,
+    parse_openai_stream_event,
 };
 use serde_json::Value;
 
@@ -357,7 +357,7 @@ fn stream_framing_fixture() {
         let wire = case["wire"].as_str().unwrap();
         let raw = case["raw"].as_str().unwrap();
         let valid = case["valid"].as_bool().unwrap();
-        let parsed = parse_raw_events(raw, wire);
+        let parsed = parse_raw_events("openai", raw, wire);
         match (parsed, valid) {
             (Ok(events), true) => {
                 let expected = case["expectedChunks"].as_array().unwrap();
