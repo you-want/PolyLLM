@@ -1,8 +1,8 @@
 # PolyLLM 发布手册
 
-本文是每次发版的操作入口，适用于现有 9 个 npm 包和 7 个 Python 包的协调发布。当前稳定版本为 **0.3.0**；以下用 **0.4.0** 举例，实际操作时替换为本次版本。
+本文是每次发版的操作入口，适用于现有 9 个 npm 包和 7 个 Python 包的协调发布。当前稳定版本为 **0.5.1**；以下用 **0.4.0** 举例，实际操作时替换为本次版本。
 
-工作流配置以 [Release npm](../.github/workflows/release-npm.yml) 和 [Release Python](../.github/workflows/release-python.yml) 为准。发布内容见 [版本记录目录](release/)，下一版范围见 [0.4.0 计划](plans/v0.4.0-plan.md)。
+工作流配置以 [Release npm](../.github/workflows/release-npm.yml) 和 [Release Python](../.github/workflows/release-python.yml) 为准。发布内容见 [版本记录目录](release/)，最新发布见 [0.5.1 发布记录](release/v0.5.1.md)。
 
 ## 1. 流程与完成标准
 

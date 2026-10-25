@@ -11,7 +11,7 @@ PolyLLM 是一个微内核、插件化的大模型统一接入层。同一份业
 
 ## 快速开始
 
-当前稳定版本 **0.5.0**(npm / PyPI)。完整指南见 [docs/getting-started.md](docs/getting-started.md)。
+当前稳定版本 **0.5.1**(npm / PyPI)。完整指南见 [docs/getting-started.md](docs/getting-started.md)。
 
 **在线试用(无需安装)**:[CodeSandbox 模板](https://codesandbox.io/s/?file=package.json) 打开即跑,预置本地 Mock 供应商。
 
@@ -87,7 +87,7 @@ createLLM() ── 模型解析 ── 参数校验 ── 插件分发
 
 新手接入指南见 `docs/getting-started.md`。
 
-项目路线图见 [roadmap](docs/roadmap.md)，近期修复见 [0.5.1 计划](docs/plans/v0.5.1-plan.md)，后续增长验证见 [0.6.0 计划](docs/plans/v0.6.0-plan.md)，公共 API 稳定性约定见 [API stability](docs/api-stability.md)。当前稳定版本为 **0.5.0**（npm / PyPI）。
+项目路线图见 [roadmap](docs/roadmap.md)，0.5.1 修复内容见 [发布记录](docs/release/v0.5.1.md)，公共 API 稳定性约定见 [API stability](docs/api-stability.md)。当前稳定版本为 **0.5.1**（npm / PyPI）。
 
 ```bash
 pnpm install
