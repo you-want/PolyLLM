@@ -386,6 +386,13 @@ pre { font-family: var(--font-mono); }
 }
 
 .terminal-card pre { border-radius: 0 0 17px 17px; }
+
+.terminal-card pre.output {
+  background: #16211b;
+  color: #a9e2c1;
+  border-top: 1px dashed #2f4a3a;
+  font-size: 12.5px;
+}
 .terminal-card p {
   margin: 0;
   padding: 13px 16px;
@@ -472,6 +479,39 @@ pre { font-family: var(--font-mono); }
 }
 
 .tab-panel pre + pre { border-top: 1px solid rgba(255, 255, 255, .08); }
+
+/* Diagnostics (experimental 0.6.0) */
+.diagnostics { background: linear-gradient(180deg, #fffdf8 0%, #f6f1e7 100%); }
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.diagnostics-facts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.diagnostics-facts article {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  padding: 18px;
+}
+
+.diagnostics-facts h3 { margin: 0 0 8px; font-size: 16px; }
+.diagnostics-facts p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.65; }
+
+.diagnostics .terminal-card pre { margin-bottom: 0; }
+.diagnostics .terminal-card pre.output {
+  border-radius: 0;
+}
+
+.diagnostics .section-header code { background: #ece5d4; padding: 1px 6px; border-radius: 2px; font-size: 13px; }
 
 .studio {
   display: grid;
@@ -677,7 +717,40 @@ pre { font-family: var(--font-mono); }
   .hero-visual { width: 100%; max-width: 620px; }
   .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .quick-grid,
-  .studio { grid-template-columns: 1fr; }
+  /* Diagnostics (experimental 0.6.0) */
+.diagnostics { background: linear-gradient(180deg, #fffdf8 0%, #f6f1e7 100%); }
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.diagnostics-facts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.diagnostics-facts article {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  padding: 18px;
+}
+
+.diagnostics-facts h3 { margin: 0 0 8px; font-size: 16px; }
+.diagnostics-facts p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.65; }
+
+.diagnostics .terminal-card pre { margin-bottom: 0; }
+.diagnostics .terminal-card pre.output {
+  border-radius: 0;
+}
+
+.diagnostics .section-header code { background: #ece5d4; padding: 1px 6px; border-radius: 2px; font-size: 13px; }
+
+.studio { grid-template-columns: 1fr; }
   .architecture-flow { grid-template-columns: 1fr; }
 }
 
