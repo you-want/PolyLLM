@@ -75,4 +75,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## crates.io 发布记录
 
-2026-10-26 发布完成：`polyllm-core 0.1.1`（含 `ReqwestTransport` 根导出的补丁修复）、`polyllm-openai 0.1.0`、`polyllm-openai-compatible 0.1.0`、`polyllm-deepseek 0.1.0`、`polyllm-ollama 0.1.0`、`polyllm-anthropic 0.1.0`、`polyllm-gemini 0.1.0`。验收：干净项目 `cargo add` 安装、编译、构造客户端、解析模型注册表全部通过。后续版本按依赖序 `cargo publish -p <crate>` 即可（crates.io 对新 crate 创建有速率限制，首版发布需间隔）。
+2026-10-26 发布完成：`polyllm-core 0.1.1`（含 `ReqwestTransport` 根导出的补丁修复）、`polyllm-openai 0.1.0`、`polyllm-openai-compatible 0.1.0`、`polyllm-deepseek 0.1.0`、`polyllm-ollama 0.1.0`、`polyllm-anthropic 0.1.0`、`polyllm-gemini 0.1.0`。验收：干净项目 `cargo add` 安装、编译、构造客户端、解析模型注册表全部通过。
+
+**后续版本走 CI**（[release-rust.yml](../.github/workflows/release-rust.yml)，与 npm/PyPI 发布工作流同构）：
+
+1. 本地 bump 版本并提交 main（内部依赖的 `version =` 同步升）。
+2. Actions → **Release Rust** → Run workflow（from `main`），确认词 `PUBLISH_RUST`。
+3. 工作流先跑 fmt/clippy/test 门禁，再用 crates.io Trusted Publishing（OIDC 短时 token，无长期 secret）按依赖序发布，最后逐包核对 registry 版本。
+
+前置（一次性）：每个 crate 在 crates.io Settings → Trusted Publishing 配置 `you-want` / `PolyLLM` / `release-rust.yml` / environment `crates-io`；GitHub 仓库 Settings → Environments 创建 `crates-io`（可加审批保护）。注意 Trusted Publishing 只支持已存在的 crate——首次发布（新 crate）仍需本地 token。

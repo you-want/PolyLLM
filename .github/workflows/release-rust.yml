@@ -1,0 +1,87 @@
+name: Release Rust
+
+# crates.io Trusted Publishing (OIDC): no long-lived API token is stored.
+# Each crate must have a Trusted Publisher configured on crates.io:
+#   owner: you-want / repository: PolyLLM / workflow: release-rust.yml / environment: crates-io
+# First-ever publishes already happened manually (2026-10-26); this workflow
+# handles version updates. Publish order follows internal dependencies.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type PUBLISH_RUST to confirm
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: crates-io
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Validate confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$CONFIRMATION" != "PUBLISH_RUST" ]; then
+            echo "Confirmation must be exactly: PUBLISH_RUST" >&2
+            exit 1
+          fi
+      - name: Quality gates (fmt / clippy / tests)
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+      - name: Exchange OIDC token for a short-lived publish token
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          set -e
+          for crate in polyllm-core polyllm-openai polyllm-openai-compatible polyllm-deepseek polyllm-ollama polyllm-anthropic polyllm-gemini; do
+            echo "--- publishing $crate"
+            cargo publish -p "$crate"
+          done
+      - name: Verify every crate version on the registry
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, urllib.request
+
+          failures = []
+          for manifest in sorted(pathlib.Path("crates").glob("*/Cargo.toml")):
+              crate = manifest.parent.name
+              for line in manifest.read_text().splitlines():
+                  if line.startswith("version"):
+                      local = line.split("=", 1)[1].strip().strip('"')
+                      break
+              else:
+                  continue
+              req = urllib.request.Request(
+                  f"https://crates.io/api/v1/crates/{crate}",
+                  headers={"User-Agent": "polyllm-release-verify (github.com/you-want/PolyLLM)"},
+              )
+              with urllib.request.urlopen(req) as response:
+                  remote = json.load(response)["crate"]["max_version"]
+              status = "OK" if remote == local else "MISMATCH"
+              print(f"{status}  {crate}: local={local} registry={remote}")
+              if remote != local:
+                  failures.append(crate)
+          if failures:
+              raise SystemExit(f"registry mismatch for: {', '.join(failures)} (propagation delay? re-run this step)")
+          PY
