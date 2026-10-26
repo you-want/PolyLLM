@@ -1,13 +1,13 @@
 # PolyLLM Rust
 
-> **Rust 语言版本的 PolyLLM 统一接入层**——与 TypeScript / Python 同一套协议、同一份共享契约 fixture 裁决，目标是对等可用。当前为 0.1.0-rc：全供应商适配完成、async 客户端就绪，crates.io 发布准备中（见文末）。
+> **Rust 语言版本的 PolyLLM 统一接入层**——与 TypeScript / Python 同一套协议、同一份共享契约 fixture 裁决。**已发布 crates.io（0.1.0 / core 0.1.1，2026-10-26）**：全供应商适配、async 客户端、`cargo add` 即用。实验性，不受稳定 API 承诺保护。
 >
 > 定位与边界见 [roadmap §4 修订记录](../docs/roadmap.md)（2026-10-25）：0.6.0 等待外部使用证据期间在独立分支起步，现已合入 main；实验性，不受稳定 API 承诺保护。
 
 ## 快速上手
 
 ```bash
-cargo add polyllm-core polyllm-openai        # crates.io 发布后可用；当前可 path 依赖或 git 依赖
+cargo add polyllm-core polyllm-openai
 ```
 
 ```rust
@@ -66,23 +66,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - 每家供应商的 wire 映射以对应 TS 包为规范逐行镜像，并有契约测试断言（Anthropic 事件流状态机、Gemini generationConfig 嵌套/图片边界、DeepSeek max_tokens 字段、Ollama tags 解析等）。
 - `cargo test`：44 项测试全绿；`cargo clippy -D warnings`、`cargo fmt --check` 干净；CI 门禁 `.github/workflows/rust.yml`。
 
-## 0.1.0 的已知边界（诚实清单）
+## 0.1.x 的已知边界（诚实清单）
 
 - **async 优先**：客户端为 tokio async；暂无 blocking 封装（需要时用 `futures::executor::block_on` 或自建 runtime）。
 - **流式取消**是 drop-based（丢弃 stream 即取消）；无独立 CancellationToken。
 - **流式重试**近似 TS 语义：只重试连接建立 + HTTP 状态（首块之后永不重放），未做到 TS 的「重试到首个可解析 chunk」。
-- **未发布 crates.io**：`cargo add` 需等首次发布（见下）。
+- **`UnifiedRequest.model` 为 schema 必填**而客户端会覆盖它——用户需要填一个占位值（0.1.1 已知疣点，计划提供 `ChatRequest` 别名类型去掉该字段）。
 
-## crates.io 发布（待维护者执行）
+## crates.io 发布记录
 
-7 个 crate 版本已冻结 0.1.0、元数据齐全。发布需要 crates.io 账号：
-
-```bash
-cd rust
-cargo login "$CRATES_IO_TOKEN"
-cargo publish -p polyllm-core --dry-run     # 预检
-cargo publish -p polyllm-core
-cargo publish -p polyllm-openai             # 依赖 path 需改为版本依赖后按依赖序发布
-```
-
-注意：workspace 内 crates 目前用 path 依赖，正式发布前把 `path = "../polyllm-core"` 保留的同时加 `version = "0.1.0"`（cargo 允许两者共存），再按 core → openai → openai-compatible / deepseek / ollama / anthropic / gemini 的依赖序发布。
+2026-10-26 发布完成：`polyllm-core 0.1.1`（含 `ReqwestTransport` 根导出的补丁修复）、`polyllm-openai 0.1.0`、`polyllm-openai-compatible 0.1.0`、`polyllm-deepseek 0.1.0`、`polyllm-ollama 0.1.0`、`polyllm-anthropic 0.1.0`、`polyllm-gemini 0.1.0`。验收：干净项目 `cargo add` 安装、编译、构造客户端、解析模型注册表全部通过。后续版本按依赖序 `cargo publish -p <crate>` 即可（crates.io 对新 crate 创建有速率限制，首版发布需间隔）。
