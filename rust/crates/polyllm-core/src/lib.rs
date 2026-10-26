@@ -39,6 +39,8 @@ pub use plugin::{LLMPlugin, PluginStream};
 pub use registry::ModelRegistry;
 pub use retry::{attempt_limit, compute_backoff_ms, with_retries};
 pub use sse::{parse_raw_events, EventFramer, Payload};
+#[cfg(feature = "http")]
+pub use http::ReqwestTransport;
 pub use stream_accumulator::{AssembledToolCall, StreamAccumulator};
 pub use types::{
     Capabilities, ChatContext, ChatOptions, ContentPart, FinishReason, ImageDetail, ImageUrl,
