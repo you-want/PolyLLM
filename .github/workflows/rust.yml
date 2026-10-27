@@ -12,6 +12,7 @@ on:
       - 'rust/**'
       - 'fixtures/**'
       - '.github/workflows/rust.yml'
+  workflow_dispatch:
 
 jobs:
   test:
