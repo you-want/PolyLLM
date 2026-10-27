@@ -29,6 +29,8 @@ pub use error::{
     classify_status, is_retryable_category, provider_http_error, provider_parse_error,
     provider_transport_error, ErrorCategory, ErrorCode, PolyLLMError,
 };
+#[cfg(feature = "http")]
+pub use http::ReqwestTransport;
 pub use http::{
     check_status, open_stream_with_retry, read_lines, resolve_provider_runtime, HttpRequest,
     HttpResponse, HttpTransport, Method, StreamHandle,
@@ -39,8 +41,6 @@ pub use plugin::{LLMPlugin, PluginStream};
 pub use registry::ModelRegistry;
 pub use retry::{attempt_limit, compute_backoff_ms, with_retries};
 pub use sse::{parse_raw_events, EventFramer, Payload};
-#[cfg(feature = "http")]
-pub use http::ReqwestTransport;
 pub use stream_accumulator::{AssembledToolCall, StreamAccumulator};
 pub use types::{
     Capabilities, ChatContext, ChatOptions, ContentPart, FinishReason, ImageDetail, ImageUrl,
