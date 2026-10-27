@@ -12,7 +12,7 @@ cargo add polyllm-core polyllm-openai
 
 ```rust
 use std::sync::Arc;
-use polyllm_core::{create_llm, ClientConfig, ProviderConfig, UnifiedRequest, HttpTransport};
+use polyllm_core::{create_llm, ChatRequest, ClientConfig, ProviderConfig, HttpTransport};
 use polyllm_openai::openai_plugin;
 
 #[tokio::main]
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | crate | 对应 npm 包 | 说明 |
 | --- | --- | --- |
-| `polyllm-core` | `@you-want/polyllm-core` | 统一协议、参数策略、注册表、错误分类、重试、客户端（async） |
+| `polyllm-core` | `@you-want/polyllm-core` | 统一协议、参数策略、注册表、错误分类、重试、客户端（async，`ChatRequest` 输入） |
 | `polyllm-openai` | `@you-want/polyllm-openai` | OpenAI Chat Completions 适配器 |
 | `polyllm-openai-compatible` | `@you-want/polyllm-openai-compatible` | 任意兼容网关 + OpenRouter/Qwen/Moonshot/Groq/vLLM/LiteLLM 预设 |
 | `polyllm-deepseek` | `@you-want/polyllm-deepseek` | DeepSeek 适配器 |
@@ -69,9 +69,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## 0.1.x 的已知边界（诚实清单）
 
 - **async 优先**：客户端为 tokio async；暂无 blocking 封装（需要时用 `futures::executor::block_on` 或自建 runtime）。
+- **`ChatRequest`（0.2.0 起）**：客户端输入不再含 wire-only 的 `model` 字段——模型由解析后的 ModelSpec 决定，调用方无需占位值。
 - **流式取消**是 drop-based（丢弃 stream 即取消）；无独立 CancellationToken。
 - **流式重试**近似 TS 语义：只重试连接建立 + HTTP 状态（首块之后永不重放），未做到 TS 的「重试到首个可解析 chunk」。
-- **`UnifiedRequest.model` 为 schema 必填**而客户端会覆盖它——用户需要填一个占位值（0.1.1 已知疣点，计划提供 `ChatRequest` 别名类型去掉该字段）。
+- **流式取消**是 drop-based（丢弃 stream 即取消）；无独立 CancellationToken。（已移除）
 
 ## crates.io 发布记录
 

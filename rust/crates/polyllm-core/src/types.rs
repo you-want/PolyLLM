@@ -121,38 +121,84 @@ pub struct UnifiedRequest {
     pub tools: Option<Vec<UnifiedTool>>,
 }
 
+fn validate_messages(messages: &[Message]) -> Result<(), PolyLLMError> {
+    if messages.is_empty() {
+        return Err(PolyLLMError::new(
+            ErrorCode::InvalidConfig,
+            "messages 不能为空（schema minItems 1）",
+        ));
+    }
+    for message in messages {
+        if message.role == Role::Tool && message.tool_call_id.is_none() {
+            return Err(PolyLLMError::new(
+                ErrorCode::InvalidConfig,
+                "role=tool 的消息必须带 toolCallId",
+            ));
+        }
+        if let MessageContent::Parts(parts) = &message.content {
+            for part in parts {
+                if let ContentPart::ImageUrl { image_url } = part {
+                    if image_url.url.is_empty() {
+                        return Err(PolyLLMError::new(
+                            ErrorCode::InvalidConfig,
+                            "imageUrl.url 不能为空（schema minLength 1）",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 impl UnifiedRequest {
     /// Shape validation mirroring `schemas/unified-request.json` +
     /// `unified-message.json` constraints (schema-driven cases in
     /// `fixtures/protocol/messages.json`).
     pub fn validate(&self) -> Result<(), PolyLLMError> {
-        if self.messages.is_empty() {
-            return Err(PolyLLMError::new(
-                ErrorCode::InvalidConfig,
-                "messages 不能为空（schema minItems 1）",
-            ));
+        validate_messages(&self.messages)
+    }
+}
+
+/// Client-facing chat input without the wire-only `model` field: the client
+/// sets the model from the resolved ModelSpec, so callers never need a
+/// placeholder value.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatRequest {
+    pub messages: Vec<Message>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+    #[serde(rename = "maxTokens", default, skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<i64>,
+    #[serde(rename = "topP", default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream: Option<bool>,
+    #[serde(rename = "jsonMode", default, skip_serializing_if = "Option::is_none")]
+    pub json_mode: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<UnifiedTool>>,
+}
+
+impl ChatRequest {
+    pub fn validate(&self) -> Result<(), PolyLLMError> {
+        validate_messages(&self.messages)
+    }
+}
+
+impl From<ChatRequest> for UnifiedRequest {
+    fn from(request: ChatRequest) -> Self {
+        UnifiedRequest {
+            model: String::new(), // filled by the client from the resolved ModelSpec
+            messages: request.messages,
+            temperature: request.temperature,
+            max_tokens: request.max_tokens,
+            top_p: request.top_p,
+            stream: request.stream,
+            json_mode: request.json_mode,
+            tools: request.tools,
         }
-        for message in &self.messages {
-            if message.role == Role::Tool && message.tool_call_id.is_none() {
-                return Err(PolyLLMError::new(
-                    ErrorCode::InvalidConfig,
-                    "role=tool 的消息必须带 toolCallId",
-                ));
-            }
-            if let MessageContent::Parts(parts) = &message.content {
-                for part in parts {
-                    if let ContentPart::ImageUrl { image_url } = part {
-                        if image_url.url.is_empty() {
-                            return Err(PolyLLMError::new(
-                                ErrorCode::InvalidConfig,
-                                "imageUrl.url 不能为空（schema minLength 1）",
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
     }
 }
 

@@ -8,8 +8,8 @@ use std::sync::Arc;
 use futures::StreamExt;
 use polyllm_core::testing::{MockAction, MockTransport};
 use polyllm_core::{
-    create_llm, provider_http_error, provider_transport_error, ClientConfig, ErrorCategory,
-    ParamPolicy, ProviderConfig, UnifiedRequest,
+    create_llm, provider_http_error, provider_transport_error, ChatRequest, ClientConfig,
+    ErrorCategory, ParamPolicy, ProviderConfig,
 };
 use polyllm_openai::openai_plugin;
 use serde_json::{json, Value};
@@ -41,9 +41,8 @@ fn base_config(
     }
 }
 
-fn simple_request() -> UnifiedRequest {
+fn simple_request() -> ChatRequest {
     serde_json::from_value(json!({
-        "model": "ignored-by-client",
         "messages": [{ "role": "user", "content": "hi" }]
     }))
     .unwrap()

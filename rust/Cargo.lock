@@ -540,7 +540,7 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "polyllm-anthropic"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -553,7 +553,7 @@ dependencies = [
 
 [[package]]
 name = "polyllm-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -567,7 +567,7 @@ dependencies = [
 
 [[package]]
 name = "polyllm-deepseek"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -581,7 +581,7 @@ dependencies = [
 
 [[package]]
 name = "polyllm-gemini"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -594,7 +594,7 @@ dependencies = [
 
 [[package]]
 name = "polyllm-ollama"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -608,7 +608,7 @@ dependencies = [
 
 [[package]]
 name = "polyllm-openai"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -622,7 +622,7 @@ dependencies = [
 
 [[package]]
 name = "polyllm-openai-compatible"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",

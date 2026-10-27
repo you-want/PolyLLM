@@ -11,7 +11,7 @@ use crate::params::validate_and_map_params;
 use crate::plugin::{LLMPlugin, PluginStream};
 use crate::registry::ModelRegistry;
 use crate::types::{
-    ChatContext, ChatOptions, ModelSpec, ParamPolicy, ProviderConfig, UnifiedRequest,
+    ChatContext, ChatOptions, ChatRequest, ModelSpec, ParamPolicy, ProviderConfig, UnifiedRequest,
     UnifiedResponse,
 };
 
@@ -78,7 +78,7 @@ impl Llm {
     fn prepare(
         &self,
         model: &str,
-        request: &UnifiedRequest,
+        request: &ChatRequest,
         _options: &ChatOptions,
     ) -> Result<Prepared, PolyLLMError> {
         let spec = match self.registry.resolve(model) {
@@ -110,7 +110,7 @@ impl Llm {
                 )
             })?
             .clone();
-        let mut prepared = request.clone();
+        let mut prepared = UnifiedRequest::from(request.clone());
         prepared.model = spec.id.clone();
         let validated = validate_and_map_params(
             &spec,
@@ -127,7 +127,7 @@ impl Llm {
     pub async fn chat(
         &self,
         model: &str,
-        request: &UnifiedRequest,
+        request: &ChatRequest,
         options: &ChatOptions,
     ) -> Result<UnifiedResponse, PolyLLMError> {
         request.validate()?;
@@ -161,10 +161,9 @@ impl Llm {
     pub fn chat_stream(
         &self,
         model: &str,
-        request: &UnifiedRequest,
+        request: &ChatRequest,
         options: &ChatOptions,
     ) -> Result<PluginStream, PolyLLMError> {
-        request.validate()?;
         let mut streaming = request.clone();
         streaming.stream = Some(true);
         let prepared = self.prepare(model, &streaming, options)?;
