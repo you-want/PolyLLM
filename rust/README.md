@@ -64,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 - 参数策略、模型解析等行为直接消费 `fixtures/protocol/*.json`（与 TS/Python 门禁同一份数据）。
 - 每家供应商的 wire 映射以对应 TS 包为规范逐行镜像，并有契约测试断言（Anthropic 事件流状态机、Gemini generationConfig 嵌套/图片边界、DeepSeek max_tokens 字段、Ollama tags 解析等）。
-- `cargo test`：44 项测试全绿；`cargo clippy -D warnings`、`cargo fmt --check` 干净；CI 门禁 `.github/workflows/rust.yml`。
+- `cargo test`：44 项测试全绿；`cargo clippy -D warnings`、`cargo fmt --check` 干净；CI 门禁 `.github/workflows/rust.yml`（toolchain 锁定 1.94.0；main 上 fmt 漂移时自动修复并回推）。
 
 ## 0.1.x 的已知边界（诚实清单）
 
