@@ -8,4 +8,5 @@
 
 - `pnpm test:python`、`pnpm typecheck:python`、`python3 python/verify_packages.py`、`python3 python/build_packages.py`、`python3 -m twine check python/dist/*`、`pnpm verify:python-install` 全部通过（含在 `pnpm verify:stability` 内）。
 - `python3 python/version.py check`：npm / PyPI / 根版本一致（0.6.0）。
-- 隔离虚拟环境安装验收（2026-10-25）：PyPI 安装 `polyllm-core`/`polyllm-openai`/`polyllm-openai-compatible` 0.6.0 导入通过；`examples/published/python` smoke 通过。工作流执行记录见仓库 Actions 历史（Release Python `testpypi` + `pypi`）。
+- 隔离虚拟环境安装验收（2026-10-25）：PyPI 安装 `polyllm-core`/`polyllm-openai`/`polyllm-openai-compatible` 0.6.0 导入通过；`examples/published/python` smoke 通过。
+- 工作流执行记录：Release Python `testpypi` <https://github.com/you-want/PolyLLM/actions/runs/40191700289> · `pypi` <https://github.com/you-want/PolyLLM/actions/runs/40192141129>（均 success）。
