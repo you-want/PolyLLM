@@ -1,0 +1,5 @@
+[toolchain]
+# 项目锁定 toolchain：本地与 CI（dtolnay/rust-toolchain@toolchainfile）保持一致，
+# 避免 rustfmt 规则随 stable 漂移导致 CI fmt 失败。升级时有意为之并同步验证。
+channel = "1.94.0"
+components = ["clippy", "rustfmt"]
