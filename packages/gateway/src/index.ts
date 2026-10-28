@@ -3,13 +3,19 @@
 //! failover groups. Not published; evaluation for the 12-04 decision gate.
 
 export {
+  buildRuntime,
   createGatewayServer,
-  startGatewayServer,
+  maskText,
   resolveRoute,
+  startGatewayServer,
   type GatewayConfig,
-  type GatewayRoute,
   type GatewayGroup,
+  type GatewayProviderConfig,
+  type GatewayRoute,
+  type GatewayRuntime,
+  type UsageCounters,
 } from './server.js'
+export { applyClaudeCodeAdapter, restoreClaudeCodeAdapter, type ClaudeCodeApplyResult } from './agent-claude-code.js'
 export {
   parseOpenAIRequest,
   renderOpenAIResponse,

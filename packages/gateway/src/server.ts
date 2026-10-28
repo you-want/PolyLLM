@@ -1,7 +1,11 @@
 //! Local gateway server (prototype): exposes OpenAI- and Anthropic-compatible
-//! endpoints over the PolyLLM plugin system, with exact-match routes and
-//! failover groups (the magpie-style core, bounded to protocol + routing —
-//! no account discovery, no key handling beyond ProviderConfig).
+//! endpoints over the PolyLLM plugin system, with exact-match routes, model
+//! failover groups, API-key account pools (rotation on retryable errors),
+//! in-memory usage counters, and opt-in local privacy masking.
+//!
+//! Deliberately excluded (magpie parity gaps, documented in the README):
+//! subscription/OAuth account discovery, persistent quota history, and GUI
+//! packaging.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import {
@@ -33,32 +37,41 @@ import {
   renderAnthropicStreamChunk,
 } from './translate-anthropic.js'
 
+export interface GatewayProviderConfig extends ProviderConfig {
+  /** API-key pool: on a retryable failure (429/5xx/connection), the next key
+   *  takes over before the gateway moves to the next model. */
+  accounts?: string[]
+}
+
 export interface GatewayRoute {
-  /** Exact incoming model id (e.g. `claude-sonnet-4-5`). */
   match: string
-  /** Target model in `provider:id` form (e.g. `deepseek:deepseek-chat`). */
   target: string
 }
 
 export interface GatewayGroup {
-  /** Referenced as `group:<name>` in requests. */
   name: string
   models: string[]
 }
 
 export interface GatewayConfig {
-  /** Provider configs keyed by provider id (same shape as polyllm.config.json). */
-  providers: Record<string, ProviderConfig>
-  /** Provider plugins to expose. Default: all built-in providers. */
+  providers: Record<string, GatewayProviderConfig>
   plugins?: string[]
-  /** Exact-model routes (magpie-style "agent X runs on model Y"). */
   routes?: GatewayRoute[]
-  /** Failover groups, referenced as `group:<name>`. */
   groups?: GatewayGroup[]
-  /** Allow unlisted models via the plugin's conservative spec. Default true. */
   allowUnlistedModels?: boolean
+  /** Local privacy masking (off by default): emails and API-key-shaped tokens
+   *  in prompt content are replaced with placeholders before the request
+   *  leaves the machine, and restored in the reply. */
+  masking?: { enabled?: boolean; extraPatterns?: string[] }
   port?: number
   host?: string
+}
+
+export interface UsageCounters {
+  requests: number
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
 }
 
 const ALL_PLUGINS: Record<string, LLMPlugin> = {
@@ -72,14 +85,123 @@ const ALL_PLUGINS: Record<string, LLMPlugin> = {
 
 const RETRYABLE_CATEGORIES = new Set(['rate_limited', 'server', 'connection'])
 
-interface ResolvedTarget {
-  targets: string[]
-  failover: boolean
+export interface GatewayRuntime {
+  /** One LLM client per account slot; slot 0 is also the no-pool client. */
+  clients: Array<{ llm: ReturnType<typeof createLLM>; accountLabel: string | undefined }>
+  /** Per-account in-memory usage counters (magpie `quota` equivalent). */
+  usage: Map<string, UsageCounters>
+  masking: { enabled: boolean; patterns: RegExp[] }
 }
 
-/** Route resolution: `group:<name>` → group members; exact route → target;
- *  otherwise pass the model through to the registry unchanged. */
-export function resolveRoute(config: GatewayConfig, model: string): ResolvedTarget {
+export function buildRuntime(config: GatewayConfig): GatewayRuntime {
+  const pluginNames = config.plugins ?? Object.keys(ALL_PLUGINS)
+  const plugins = pluginNames.map((name) => {
+    const plugin = ALL_PLUGINS[name]
+    if (!plugin) throw new PolyLLMError('INVALID_CONFIG', `gateway: 未知插件 ${name}`, { provider: name })
+    return plugin
+  })
+  const poolSize = Math.max(
+    1,
+    ...Object.values(config.providers).map((provider) => provider.accounts?.length ?? 1),
+  )
+  const hasPool = Object.values(config.providers).some(
+    (provider) => (provider.accounts?.length ?? 0) > 1,
+  )
+  const clients: GatewayRuntime['clients'] = []
+  for (let index = 0; index < poolSize; index += 1) {
+    const providers: Record<string, ProviderConfig> = {}
+    for (const [provider, providerConfig] of Object.entries(config.providers)) {
+      const accounts = providerConfig.accounts
+      if (accounts && accounts.length > 0) {
+        providers[provider] = { ...providerConfig, apiKey: accounts[index % accounts.length] }
+      } else {
+        const { accounts: _accounts, ...rest } = providerConfig
+        providers[provider] = rest
+      }
+    }
+    clients.push({
+      llm: createLLM({
+        plugins,
+        providers,
+        allowUnlistedModels: config.allowUnlistedModels ?? true,
+      } satisfies ClientConfig),
+      accountLabel: hasPool ? `account#${index + 1}` : 'default',
+    })
+  }
+  return {
+    clients,
+    usage: new Map(),
+    masking: {
+      enabled: config.masking?.enabled ?? false,
+      patterns: [
+        /[\w.+-]+@[\w-]+\.[\w.]{2,}/g,
+        /sk-[A-Za-z0-9]{16,}/g,
+        /ghp_[A-Za-z0-9]{20,}/g,
+        /xox[baprs]-[A-Za-z0-9-]{10,}/g,
+        ...(config.masking?.extraPatterns ?? []).map((pattern) => new RegExp(pattern, 'g')),
+      ],
+    },
+  }
+}
+
+// --- local privacy masking (per-request registry) ---
+
+export interface RequestMasking {
+  registry: Map<string, string>
+}
+
+export function maskText(runtime: GatewayRuntime, text: string, masking: RequestMasking): string {
+  if (!runtime.masking.enabled) return text
+  let masked = text
+  for (const pattern of runtime.masking.patterns) {
+    masked = masked.replace(pattern, (match) => {
+      for (const [placeholder, original] of masking.registry) {
+        if (original === match) return placeholder
+      }
+      const placeholder = `::POLYLLM_MASK_${masking.registry.size + 1}::`
+      masking.registry.set(placeholder, match)
+      return placeholder
+    })
+  }
+  return masked
+}
+
+function maskRequest(runtime: GatewayRuntime, request: UnifiedRequest, masking: RequestMasking): void {
+  for (const message of request.messages) {
+    if (typeof message.content === 'string') {
+      message.content = maskText(runtime, message.content, masking)
+    } else {
+      for (const part of message.content) {
+        if (part.type === 'text' && typeof part.text === 'string') {
+          part.text = maskText(runtime, part.text, masking)
+        }
+      }
+    }
+  }
+}
+
+function unmaskDeep(value: unknown, masking: RequestMasking): unknown {
+  if (typeof value === 'string') {
+    let restored = value
+    for (const [placeholder, original] of masking.registry) {
+      restored = restored.split(placeholder).join(original)
+    }
+    return restored
+  }
+  if (Array.isArray(value)) return value.map((item) => unmaskDeep(item, masking))
+  if (value !== null && typeof value === 'object') {
+    const out: JsonRecord = {}
+    for (const [key, item] of Object.entries(value as JsonRecord)) {
+      out[key] = unmaskDeep(item, masking)
+    }
+    return out
+  }
+  return value
+}
+
+// --- routing / failover ---
+
+export function resolveRoute(config: GatewayConfig, model: string): { targets: string[]; failover: boolean } {
   if (model.startsWith('group:')) {
     const name = model.slice('group:'.length)
     const group = (config.groups ?? []).find((candidate) => candidate.name === name)
@@ -101,7 +223,69 @@ function isRetryable(error: unknown): boolean {
   )
 }
 
-function sendJson(response: ServerResponse, status: number, body: JsonRecord, headers: Record<string, string> = {}): void {
+interface ChatOutcome {
+  result: Awaited<ReturnType<ReturnType<typeof createLLM>['chat']>>
+  header: string | undefined
+}
+
+/** Chat with two failover layers: accounts within a target (key pool), then
+ *  models within a group. Only retryable errors (429/5xx/connection) rotate.
+ *  Usage counters accumulate per account (in-memory, magpie `quota` 等价物). */
+async function chatWithFailover(
+  runtime: GatewayRuntime,
+  request: UnifiedRequest,
+  targets: string[],
+  failover: boolean,
+): Promise<ChatOutcome> {
+  const failed: string[] = []
+  let lastError: unknown
+  for (const target of targets) {
+    for (let slot = 0; slot < runtime.clients.length; slot += 1) {
+      const client = runtime.clients[slot]
+      const label = client.accountLabel ?? 'default'
+      try {
+        const result = await client.llm.chat(target, request, {})
+        const counters = runtime.usage.get(label) ?? {
+          requests: 0,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+        }
+        counters.requests += 1
+        counters.promptTokens += result.usage.promptTokens
+        counters.completionTokens += result.usage.completionTokens
+        counters.totalTokens += result.usage.totalTokens
+        runtime.usage.set(label, counters)
+        const header =
+          failed.length > 0
+            ? `${failed.join(' | ')} -> ${target}${client.accountLabel !== undefined ? ` (${client.accountLabel})` : ''}`
+            : undefined
+        return { result, header }
+      } catch (error) {
+        lastError = error
+        failed.push(
+          `${target}${client.accountLabel !== undefined ? `(${client.accountLabel})` : ''}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
+        const retryable = isRetryable(error)
+        const moreAccounts = slot < runtime.clients.length - 1
+        const moreTargets = target !== targets[targets.length - 1]
+        if (!(retryable && (moreAccounts || moreTargets))) break
+      }
+    }
+  }
+  throw lastError
+}
+
+// --- wire helpers ---
+
+function sendJson(
+  response: ServerResponse,
+  status: number,
+  body: JsonRecord,
+  headers: Record<string, string> = {},
+): void {
   response.writeHead(status, { 'content-type': 'application/json', ...headers })
   response.end(JSON.stringify(body))
 }
@@ -113,34 +297,36 @@ async function readBody(request: IncomingMessage): Promise<JsonRecord> {
   return JSON.parse(raw) as JsonRecord
 }
 
-/** Run one chat attempt with the given target; fails over on retryable
- *  errors when the target is part of a group. Returns the response plus a
- *  `x-polyllm-failover` header value of the form `failed attempts -> served`. */
-async function chatWithFailover(
-  llm: ReturnType<typeof createLLM>,
-  request: UnifiedRequest,
-  targets: string[],
-  failover: boolean,
-): Promise<{ result: Awaited<ReturnType<ReturnType<typeof createLLM>['chat']>>; header: string | undefined }> {
-  const failed: string[] = []
-  let lastError: unknown
-  for (let index = 0; index < targets.length; index += 1) {
-    const target = targets[index]
-    try {
-      const result = await llm.chat(target, request, {})
-      const header = failed.length > 0 ? `${failed.join(' | ')} -> ${target}` : undefined
-      return { result, header }
-    } catch (error) {
-      lastError = error
-      failed.push(`${target}: ${error instanceof Error ? error.message : String(error)}`)
-      if (!failover || index === targets.length - 1 || !isRetryable(error)) break
+async function writeStream(
+  response: ServerResponse,
+  streamIterable: AsyncIterable<import('@you-want/polyllm-core').UnifiedStreamChunk>,
+  protocol: 'openai' | 'anthropic',
+  masking: RequestMasking,
+): Promise<void> {
+  if (protocol === 'anthropic') {
+    const state = createAnthropicRenderState()
+    for await (const rawChunk of streamIterable) {
+      const chunk = unmaskDeep(rawChunk, masking) as typeof rawChunk
+      for (const event of renderAnthropicStreamChunk(chunk, state)) {
+        response.write(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`)
+      }
     }
+    response.write(
+      `event: ${ANTHROPIC_MESSAGE_STOP.event}\ndata: ${JSON.stringify(ANTHROPIC_MESSAGE_STOP.data)}\n\n`,
+    )
+  } else {
+    for await (const rawChunk of streamIterable) {
+      response.write(`data: ${JSON.stringify(unmaskDeep(renderOpenAIStreamChunk(rawChunk), masking))}\n\n`)
+    }
+    response.write('data: [DONE]\n\n')
   }
-  throw lastError
+  response.end()
 }
 
+// --- endpoints ---
+
 async function handleChatEndpoint(
-  llm: ReturnType<typeof createLLM>,
+  runtime: GatewayRuntime,
   config: GatewayConfig,
   request: IncomingMessage,
   response: ServerResponse,
@@ -176,115 +362,75 @@ async function handleChatEndpoint(
     return
   }
 
+  const masking: RequestMasking = { registry: new Map() }
+  maskRequest(runtime, unified, masking)
   const stream = unified.stream === true
+
   try {
     if (stream) {
       response.writeHead(200, {
-        'content-type': protocol === 'anthropic' ? 'text/event-stream' : 'text/event-stream; charset=utf-8',
+        'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
         connection: 'keep-alive',
       })
-      const target = targets[0]
-      if (failover && targets.length > 1) {
-        // Connect-phase failover: try targets until chatStream() establishes.
-        let established: Awaited<ReturnType<ReturnType<typeof createLLM>['chatStream']>> | undefined
-        let establishedOn = target
-        let lastError: unknown
-        for (const candidate of targets) {
+      // Connect-phase failover across accounts and targets; once chunks flow,
+      // errors surface mid-stream (never replayed).
+      let lastError: unknown
+      let established = false
+      for (const target of targets) {
+        if (established) break
+        for (const client of runtime.clients) {
           try {
-            established = llm.chatStream(candidate, unified, {})
-            // Force the first chunk to surface connection/HTTP errors.
-            const iterator = established[Symbol.asyncIterator]()
+            const streamIterable = client.llm.chatStream(target, unified, {})
+            const iterator = streamIterable[Symbol.asyncIterator]()
             const first = await iterator.next()
-            established = (async function* () {
+            const establishedStream = (async function* () {
               if (!first.done) yield first.value
-              yield* established!
+              yield* streamIterable
             })()
-            establishedOn = candidate
+            if (runtime.clients.length > 1 || targets.length > 1) {
+              response.setHeader(
+                'x-polyllm-failover',
+                `${targets[0]} -> ${target}${client.accountLabel !== undefined ? ` (${client.accountLabel})` : ''}`,
+              )
+            }
+            established = true
+            await writeStream(response, establishedStream, protocol, masking)
             break
           } catch (error) {
             lastError = error
             if (!isRetryable(error)) break
           }
         }
-        if (!established) throw lastError
-        response.setHeader('x-polyllm-failover', `${target} -> ${establishedOn}`)
-        await writeStream(response, established, protocol)
-        return
       }
-      const streamIterable = llm.chatStream(target, unified, {})
-      await writeStream(response, streamIterable, protocol)
+      if (!established) throw lastError
       return
     }
 
-    const { result, header } = await chatWithFailover(llm, unified, targets, failover)
-    const headers: Record<string, string> = {}
-    if (header !== undefined) headers['x-polyllm-failover'] = header
+    const { result, header } = await chatWithFailover(runtime, unified, targets, failover)
     const rendered = protocol === 'anthropic' ? renderAnthropicResponse(result) : renderOpenAIResponse(result)
-    sendJson(response, 200, rendered, headers)
+    const unmasked = unmaskDeep(rendered, masking)
+    sendJson(response, 200, unmasked as JsonRecord, header !== undefined ? { 'x-polyllm-failover': header } : {})
   } catch (error) {
     const polyllmError = error instanceof PolyLLMError ? error : new PolyLLMError('PROVIDER_ERROR', String(error))
     const status = polyllmError.code === 'UNKNOWN_MODEL' ? 404 : 502
-    sendJson(response, status, protocol === 'anthropic' ? renderAnthropicError(polyllmError) : { error: { message: polyllmError.message, code: polyllmError.code } })
+    const errorBody =
+      protocol === 'anthropic'
+        ? renderAnthropicError(polyllmError)
+        : { error: { message: polyllmError.message, code: polyllmError.code } }
+    sendJson(response, status, unmaskDeep(errorBody, masking) as JsonRecord)
   }
-}
-
-async function writeStream(
-  response: ServerResponse,
-  streamIterable: AsyncIterable<import('@you-want/polyllm-core').UnifiedStreamChunk>,
-  protocol: 'openai' | 'anthropic',
-): Promise<void> {
-  if (protocol === 'anthropic') {
-    const state = createAnthropicRenderState()
-    for await (const chunk of streamIterable) {
-      for (const event of renderAnthropicStreamChunk(chunk, state)) {
-        response.write(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`)
-      }
-    }
-    response.write(`event: ${ANTHROPIC_MESSAGE_STOP.event}\ndata: ${JSON.stringify(ANTHROPIC_MESSAGE_STOP.data)}\n\n`)
-  } else {
-    for await (const chunk of streamIterable) {
-      response.write(`data: ${JSON.stringify(renderOpenAIStreamChunk(chunk))}\n\n`)
-    }
-    response.write('data: [DONE]\n\n')
-  }
-  response.end()
-}
-
-/** Build the gateway HTTP server (does not listen — call `server.listen`). */
-export function createGatewayServer(config: GatewayConfig): Server {
-  const pluginNames = config.plugins ?? Object.keys(ALL_PLUGINS)
-  const plugins = pluginNames.map((name) => {
-    const plugin = ALL_PLUGINS[name]
-    if (!plugin) throw new PolyLLMError('INVALID_CONFIG', `gateway: 未知插件 ${name}`, { provider: name })
-    return plugin
-  })
-  const llm = createLLM({
-    plugins,
-    providers: config.providers,
-    allowUnlistedModels: config.allowUnlistedModels ?? true,
-  } satisfies ClientConfig)
-
-  return createServer((request, response) => {
-    void handleRequest(llm, config, request, response).catch((error: unknown) => {
-      if (!response.headersSent) {
-        sendJson(response, 500, { error: { message: error instanceof Error ? error.message : String(error) } })
-      } else {
-        response.end()
-      }
-    })
-  })
 }
 
 async function handleRequest(
-  llm: ReturnType<typeof createLLM>,
+  runtime: GatewayRuntime,
   config: GatewayConfig,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
   const url = (request.url ?? '/').split('?')[0]
   if (request.method === 'GET' && (url === '/v1/models' || url === '/models')) {
-    const models = llm.listModels().map((spec) => ({
+    const models = runtime.clients[0].llm.listModels().map((spec) => ({
       id: `${spec.provider}:${spec.id}`,
       object: 'model',
       owned_by: spec.provider,
@@ -293,11 +439,16 @@ async function handleRequest(
     return
   }
   if (request.method === 'POST' && (url === '/v1/chat/completions' || url === '/chat/completions')) {
-    await handleChatEndpoint(llm, config, request, response, 'openai')
+    await handleChatEndpoint(runtime, config, request, response, 'openai')
     return
   }
   if (request.method === 'POST' && (url === '/v1/messages' || url === '/messages')) {
-    await handleChatEndpoint(llm, config, request, response, 'anthropic')
+    await handleChatEndpoint(runtime, config, request, response, 'anthropic')
+    return
+  }
+  if (request.method === 'GET' && (url === '/usage' || url === '/v1/usage')) {
+    const accounts = [...runtime.usage.entries()].map(([account, counters]) => ({ account, ...counters }))
+    sendJson(response, 200, { accounts })
     return
   }
   if (request.method === 'GET' && (url === '/health' || url === '/healthz')) {
@@ -307,7 +458,19 @@ async function handleRequest(
   sendJson(response, 404, { error: { message: `gateway: 未知路由 ${request.method} ${url}` } })
 }
 
-/** Convenience: create + listen. Resolves with the actual port. */
+export function createGatewayServer(config: GatewayConfig): Server {
+  const runtime = buildRuntime(config)
+  return createServer((request, response) => {
+    void handleRequest(runtime, config, request, response).catch((error: unknown) => {
+      if (!response.headersSent) {
+        sendJson(response, 500, { error: { message: error instanceof Error ? error.message : String(error) } })
+      } else {
+        response.end()
+      }
+    })
+  })
+}
+
 export function startGatewayServer(config: GatewayConfig): Promise<{ server: Server; port: number }> {
   const server = createGatewayServer(config)
   return new Promise((resolve, reject) => {
