@@ -1,0 +1,40 @@
+{
+  "name": "@you-want/polyllm-gateway",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "description": "PolyLLM local gateway (prototype): OpenAI- and Anthropic-compatible endpoints over the plugin system, with routes and failover groups.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/you-want/PolyLLM",
+    "directory": "packages/gateway"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@you-want/polyllm-core": "workspace:*",
+    "@you-want/polyllm-anthropic": "workspace:*",
+    "@you-want/polyllm-deepseek": "workspace:*",
+    "@you-want/polyllm-gemini": "workspace:*",
+    "@you-want/polyllm-ollama": "workspace:*",
+    "@you-want/polyllm-openai": "workspace:*",
+    "@you-want/polyllm-openai-compatible": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
