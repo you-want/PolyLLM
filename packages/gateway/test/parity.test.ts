@@ -40,15 +40,28 @@ describe('account pools, usage counters, and masking (magpie parity)', () => {
   const seenAuthHeaders: string[] = []
 
   beforeAll(async () => {
-    upstream = createUpstream((request, _body, response) => {
+    upstream = createUpstream((request, body, response) => {
       const auth = request.headers.authorization ?? ''
+      console.log('MOCK request:', auth.slice(-14), '| stream flag:', String(body.stream), '| url:', request.url)
       seenAuthHeaders.push(auth)
       if (auth.endsWith('sk-account-1')) {
         response.writeHead(429, { 'content-type': 'application/json' })
         response.end(JSON.stringify({ error: { message: 'quota exhausted' } }))
         return
       }
-      const bodyText = JSON.stringify(_body)
+      if (body.stream === true) {
+          response.writeHead(200, { 'content-type': 'text/event-stream' })
+        const events = [
+          { id: 'p1', model: 'gpt-4o-mini', choices: [{ index: 0, delta: { role: 'assistant', content: 'He' } }] },
+          { id: 'p1', model: 'gpt-4o-mini', choices: [{ index: 0, delta: { content: 'llo' } }] },
+          { id: 'p1', model: 'gpt-4o-mini', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] },
+        ]
+        for (const event of events) response.write(`data: ${JSON.stringify(event)}\n\n`)
+        response.write('data: [DONE]\n\n')
+        response.end()
+        return
+      }
+      const bodyText = JSON.stringify(body)
       const placeholder = bodyText.match(/::POLYLLM_MASK_\d+::/)?.[0]
       console.log('MOCK auth:', auth.slice(-14), 'placeholder:', placeholder)
       response.writeHead(200, { 'content-type': 'application/json' })
@@ -117,6 +130,23 @@ describe('account pools, usage counters, and masking (magpie parity)', () => {
     expect(account2).toBeDefined()
     expect(account2!.requests).toBeGreaterThanOrEqual(1)
     expect(account2!.totalTokens).toBe(7)
+  })
+
+  it('streams anthropic events through an account pool failover', async () => {
+    const response = await fetch(`http://127.0.0.1:${gatewayPort}/v1/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'openai:gpt-4o-mini',
+        max_tokens: 64,
+        stream: true,
+        messages: [{ role: 'user', content: 'stream me' }],
+      }),
+    })
+    const text = await response.text()
+    console.log('POOL STREAM raw:', JSON.stringify(text.slice(0, 200)))
+    expect(response.status).toBe(200)
+    expect(text).toContain('event: message_start')
   })
 
   it('masks emails and API keys outbound and restores them inbound', async () => {

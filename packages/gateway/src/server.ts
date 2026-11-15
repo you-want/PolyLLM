@@ -368,34 +368,26 @@ async function handleChatEndpoint(
 
   try {
     if (stream) {
-      response.writeHead(200, {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        connection: 'keep-alive',
-      })
-      // Connect-phase failover across accounts and targets; once chunks flow,
-      // errors surface mid-stream (never replayed).
+      // Connect-phase failover across accounts and targets happens BEFORE the
+      // response head is written (a late setHeader after writeHead throws);
+      // once chunks flow, errors surface mid-stream (never replayed).
       let lastError: unknown
-      let established = false
+      let establishedStream: AsyncIterable<import('@you-want/polyllm-core').UnifiedStreamChunk> | undefined
+      let failoverHeader: string | undefined
       for (const target of targets) {
-        if (established) break
+        if (establishedStream) break
         for (const client of runtime.clients) {
           try {
             const streamIterable = client.llm.chatStream(target, unified, {})
             const iterator = streamIterable[Symbol.asyncIterator]()
             const first = await iterator.next()
-            const establishedStream = (async function* () {
+            establishedStream = (async function* () {
               if (!first.done) yield first.value
               yield* streamIterable
             })()
             if (runtime.clients.length > 1 || targets.length > 1) {
-              response.setHeader(
-                'x-polyllm-failover',
-                `${targets[0]} -> ${target}${client.accountLabel !== undefined ? ` (${client.accountLabel})` : ''}`,
-              )
+              failoverHeader = `${targets[0]} -> ${target}${client.accountLabel !== undefined ? ` (${client.accountLabel})` : ''}`
             }
-            established = true
-            await writeStream(response, establishedStream, protocol, masking)
             break
           } catch (error) {
             lastError = error
@@ -403,7 +395,14 @@ async function handleChatEndpoint(
           }
         }
       }
-      if (!established) throw lastError
+      if (!establishedStream) throw lastError
+      response.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        connection: 'keep-alive',
+        ...(failoverHeader !== undefined ? { 'x-polyllm-failover': failoverHeader } : {}),
+      })
+      await writeStream(response, establishedStream, protocol, masking)
       return
     }
 
