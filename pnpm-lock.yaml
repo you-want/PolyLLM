@@ -116,6 +116,9 @@ importers:
       '@you-want/polyllm-diagnostics':
         specifier: workspace:*
         version: link:../diagnostics
+      '@you-want/polyllm-gateway':
+        specifier: workspace:*
+        version: link:../gateway
       '@you-want/polyllm-gemini':
         specifier: workspace:*
         version: link:../gemini

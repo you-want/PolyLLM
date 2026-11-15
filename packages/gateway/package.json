@@ -1,7 +1,6 @@
 {
   "name": "@you-want/polyllm-gateway",
-  "version": "0.6.0",
-  "private": true,
+  "version": "0.7.0-beta.0",
   "type": "module",
   "description": "PolyLLM local gateway (prototype): OpenAI- and Anthropic-compatible endpoints over the plugin system, with routes and failover groups.",
   "license": "MIT",
@@ -36,5 +35,9 @@
     "@types/node": "^22.18.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
-  }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ]
 }

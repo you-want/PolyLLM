@@ -10,6 +10,7 @@ const expectedVersionArg = [...args].find((argument) => argument.startsWith('--v
 const expectedVersion = expectedVersionArg?.slice('--version='.length)
 
 const errors = []
+const warnings = []
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'))
@@ -65,8 +66,8 @@ const publishablePackages = workspacePackages.filter(({ manifest }) => manifest.
 const publishableNames = new Set(publishablePackages.map(({ manifest }) => manifest.name))
 const expected = expectedVersion || rootManifest.version
 
-if (!/^\d+\.\d+\.\d+$/.test(expected)) {
-  errors.push(`Release version must use MAJOR.MINOR.PATCH format: ${expected}`)
+if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(expected)) {
+  errors.push(`Release version must use MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-PRERELEASE format: ${expected}`)
 }
 
 for (const { manifest, directory } of publishablePackages) {
@@ -82,8 +83,18 @@ for (const { manifest, directory } of publishablePackages) {
 }
 
 const pythonVersion = runPython('python/version.py', ['get'])
+const isNpmPrerelease = expected.includes('-')
 if (pythonVersion && pythonVersion !== expected) {
-  errors.push(`Python packages: version ${pythonVersion} does not match release version ${expected}`)
+  // npm-only prereleases (e.g. 0.7.0-beta.x, gateway-only features) keep the
+  // Python line on the last stable version; the two-end sync rule resumes at
+  // the final release.
+  if (isNpmPrerelease) {
+    warnings.push(
+      `npm prerelease ${expected} ships without a Python bump (Python stays at ${pythonVersion})`,
+    )
+  } else {
+    errors.push(`Python packages: version ${pythonVersion} does not match release version ${expected}`)
+  }
 }
 runPython('python/version.py', ['check'])
 runPython('python/verify_packages.py')
@@ -157,6 +168,10 @@ if (!existsSync(join(projectRoot, 'scripts', 'promote-npm-dist-tag.mjs'))) {
 if (errors.length > 0) {
   console.error(`Release readiness validation failed:\n${errors.map((error) => `- ${error}`).join('\n')}`)
   process.exit(1)
+}
+
+if (warnings.length > 0) {
+  for (const warning of warnings) console.warn(`warning: ${warning}`)
 }
 
 console.log(

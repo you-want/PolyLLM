@@ -27,6 +27,7 @@
       <nav aria-label="主导航">
         <a href="#quick-start">快速开始</a>
         <a href="#diagnostics">接入诊断</a>
+        <a href="#gateway">本地网关</a>
         <a href="#studio">本地 Studio</a>
         <a href="#languages">多语言</a>
         <a href="#security">安全</a>
@@ -53,6 +54,7 @@
             <li>模型别名与快照</li>
             <li>参数策略</li>
             <li>离线接入诊断</li>
+            <li>本地网关 · 0.7.0-beta</li>
             <li>本地可视化配置</li>
           </ul>
         </div>
@@ -133,6 +135,50 @@
               <p>脱敏 fixture 在新目录可重放；故意损坏的流必然让检查变红（变异检查），防止「报告永远绿」。</p>
             </article>
           </div>
+        </div>
+      </section>
+
+      <section id="gateway" class="section gateway-section" aria-labelledby="gateway-title">
+        <div class="section-header">
+          <p class="eyebrow">Local Gateway · 0.7.0-beta</p>
+          <h2 id="gateway-title">一个本地网关，Anthropic 客户端跑在任何后端上</h2>
+          <p>
+            <strong>0.7.0-beta 预发布</strong>（实验性）：把 PolyLLM 的插件系统暴露成本地 HTTP 网关——
+            <code>POST /v1/messages</code> 说 Anthropic 协议（Claude Code 等），
+            <code>POST /v1/chat/completions</code> 说 OpenAI 协议，背后派发给任意已配置供应商。
+          </p>
+        </div>
+        <div class="card-grid">
+          <article>
+            <span>①</span>
+            <h3>协议桥接</h3>
+            <p>Claude Code（Anthropic 协议）→ 网关翻译 → DeepSeek / OpenAI / Ollama / Gemini / 兼容网关——「Claude Code 跑在 DeepSeek 上」。</p>
+          </article>
+          <article>
+            <span>②</span>
+            <h3>路由与故障转移组</h3>
+            <p>精确映射 + 路由组；429/5xx 自动切换账号池或下一个模型，<code>x-polyllm-failover</code> 头记录切换轨迹——错误不静默。</p>
+          </article>
+          <article>
+            <span>③</span>
+            <h3>账号池与用量看板</h3>
+            <p>每供应商多账号轮换，<code>GET /usage</code> 按账号统计请求与 token（内存态）。</p>
+          </article>
+          <article>
+            <span>④</span>
+            <h3>本地隐私脱敏</h3>
+            <p>邮箱 / API 密钥出站前替换为占位符、入站自动还原（默认关闭）——密钥永不出本机。</p>
+          </article>
+        </div>
+        <div class="terminal-card">
+          <header>
+            <span></span><span></span><span></span>
+            <strong>三步上手（实验性）</strong>
+          </header>
+          <pre><code>npm install -g @you-want/polyllm-cli@beta
+polyllm serve --gateway-config polyllm.gateway.json
+# Claude Code:
+#   ANTHROPIC_BASE_URL=http://127.0.0.1:8787 claude</code></pre>
         </div>
       </section>
 

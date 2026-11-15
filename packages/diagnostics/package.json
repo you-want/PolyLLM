@@ -1,6 +1,6 @@
 {
   "name": "@you-want/polyllm-diagnostics",
-  "version": "0.6.0",
+  "version": "0.7.0-beta.0",
   "type": "module",
   "description": "PolyLLM diagnostics (experimental): offline replay of OpenAI-compatible stream fixtures with an independent reference accumulator.",
   "license": "MIT",

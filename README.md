@@ -11,7 +11,7 @@ PolyLLM 是一个微内核、插件化的大模型统一接入层。同一份业
 
 ## 快速开始
 
-当前稳定版本 **0.6.0**(npm / PyPI)。完整指南见 [docs/getting-started.md](docs/getting-started.md)。
+当前稳定版本 **0.6.0**(npm / PyPI)；**0.7.0-beta.0 预发布**带来本地网关（npm-only，`@beta` 标签）。完整指南见 [docs/getting-started.md](docs/getting-started.md)。
 
 **在线试用(无需安装)**:[CodeSandbox 模板](https://codesandbox.io/s/?file=package.json) 打开即跑,预置本地 Mock 供应商。
 
@@ -36,7 +36,7 @@ const resp = await llm.chat('openai:gpt-4o-mini', {
 })
 ```
 
-不想写代码?`npx @you-want/polyllm-cli studio` 一键可视化选供应商、探模型、生成完整项目。
+不想写代码?`npx @you-want/polyllm-cli studio` 一键可视化选供应商、探模型、生成完整项目；`npx @you-want/polyllm-cli@next serve --gateway-config polyllm.gateway.json` 启动本地网关（0.7.0-beta，实验性）——Anthropic 协议客户端（如 Claude Code）可经网关使用任意已配置后端，含路由、故障转移组、账号池与本地脱敏。
 
 ## 在线试用
 

@@ -1,6 +1,6 @@
 # @you-want/polyllm-gateway
 
-> **原型（gateway 分支，未发布、未合入 main）**：PolyLLM 的本地网关——magpie 式核心功能的最小内核。评估于 12-04 决策门之后决定去留。
+> **实验性（0.7.0-beta.0 预发布，已合入 main）**：PolyLLM 的本地网关——magpie 式核心功能的最小内核。最终去留于 12-04 决策门评估；不受稳定 API 承诺保护。npm 发布走 `@beta` 预发布线（Trusted Publisher 需一次性配置，同 diagnostics 流程）。
 
 ## 是什么
 

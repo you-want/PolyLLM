@@ -1,9 +1,9 @@
 {
   "name": "polyllm-monorepo",
-  "version": "0.6.0",
+  "version": "0.7.0-beta.0",
   "private": true,
   "type": "module",
-  "description": "PolyLLM · 万剑归宗 — a plugin-based unified LLM access layer.",
+  "description": "PolyLLM \u00b7 \u4e07\u5251\u5f52\u5b97 \u2014 a plugin-based unified LLM access layer.",
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "build": "pnpm --filter @you-want/polyllm-studio-app... build && pnpm -r run build",
@@ -25,7 +25,7 @@
     "verify:stability": "pnpm build && pnpm test && pnpm typecheck && pnpm verify:packages && pnpm verify:integration && pnpm verify:generated-projects && pnpm verify:protocol && pnpm verify:packed-install && pnpm test:python && pnpm typecheck:python && pnpm verify:python && pnpm build:python && python3 -m twine check python/dist/* && pnpm verify:python-install",
     "typecheck": "pnpm -r run typecheck",
     "polyllm": "node packages/cli/dist/main.js",
-    "verify:packages": "node scripts/verify-package-metadata.mjs && pnpm --filter @you-want/polyllm-core --filter @you-want/polyllm-openai --filter @you-want/polyllm-deepseek --filter @you-want/polyllm-anthropic --filter @you-want/polyllm-gemini --filter @you-want/polyllm-ollama --filter @you-want/polyllm-openai-compatible --filter @you-want/polyllm-studio --filter @you-want/polyllm-cli --filter @you-want/polyllm-diagnostics exec publint --strict",
+    "verify:packages": "node scripts/verify-package-metadata.mjs && pnpm --filter @you-want/polyllm-core --filter @you-want/polyllm-openai --filter @you-want/polyllm-deepseek --filter @you-want/polyllm-anthropic --filter @you-want/polyllm-gemini --filter @you-want/polyllm-ollama --filter @you-want/polyllm-openai-compatible --filter @you-want/polyllm-studio --filter @you-want/polyllm-cli --filter @you-want/polyllm-diagnostics --filter @you-want/polyllm-gateway exec publint --strict",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm verify:stability && pnpm verify:release:frozen && changeset publish"

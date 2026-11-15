@@ -13,6 +13,7 @@ const publishablePackages = [
   '@you-want/polyllm-studio',
   '@you-want/polyllm-cli',
   '@you-want/polyllm-diagnostics',
+  '@you-want/polyllm-gateway',
 ]
 
 const privateWorkspacePackages = new Set([

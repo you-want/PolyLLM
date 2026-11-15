@@ -480,6 +480,10 @@ pre { font-family: var(--font-mono); }
 
 .tab-panel pre + pre { border-top: 1px solid rgba(255, 255, 255, .08); }
 
+/* Local Gateway (0.7.0-beta) */
+.gateway-section { background: #fffdf8; }
+.gateway-section .terminal-card { margin-top: 18px; }
+
 /* Diagnostics (experimental 0.6.0) */
 .diagnostics { background: linear-gradient(180deg, #fffdf8 0%, #f6f1e7 100%); }
 
@@ -717,7 +721,11 @@ pre { font-family: var(--font-mono); }
   .hero-visual { width: 100%; max-width: 620px; }
   .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .quick-grid,
-  /* Diagnostics (experimental 0.6.0) */
+  /* Local Gateway (0.7.0-beta) */
+.gateway-section { background: #fffdf8; }
+.gateway-section .terminal-card { margin-top: 18px; }
+
+/* Diagnostics (experimental 0.6.0) */
 .diagnostics { background: linear-gradient(180deg, #fffdf8 0%, #f6f1e7 100%); }
 
 .diagnostics-grid {

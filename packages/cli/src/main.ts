@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { parsePolyLLMConfig, readPolyLLMConfig } from './config.js'
 import { runDiagnose } from '@you-want/polyllm-diagnostics'
+import { startGatewayServer, type GatewayConfig } from '@you-want/polyllm-gateway'
 import { doctorConfig, listSelectedModels } from './doctor.js'
 import { generateNewPluginFiles } from './new-plugin.js'
 import { generateProjectFiles } from './project.js'
@@ -21,6 +23,8 @@ interface CliOptions {
   fixturePath?: string
   outDir?: string
   quiet?: boolean
+  gatewayConfigPath?: string
+  gatewayPort?: number
 }
 
 function parseArgs(argv: readonly string[]): CliOptions {
@@ -49,6 +53,8 @@ function parseArgs(argv: readonly string[]): CliOptions {
     else if (arg === '--fixture') options.fixturePath = args[++index]
     else if (arg === '--out') options.outDir = args[++index]
     else if (arg === '--quiet') options.quiet = true
+    else if (arg === '--gateway-config') options.gatewayConfigPath = args[++index]
+    else if (arg === '--port') options.gatewayPort = Number(args[++index])
     else throw new Error(`未知参数: ${arg}`)
   }
   return options
@@ -101,7 +107,8 @@ async function newPlugin(options: CliOptions): Promise<void> {
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2))
   if (!options.command || ['help', '--help', '-h'].includes(options.command)) {
-    console.log(`PolyLLM CLI\n\n用法:\n  polyllm studio [--host 127.0.0.1] [--port 5177] [--no-open]\n  polyllm init --config polyllm.config.json --dir ./my-app\n  polyllm doctor --config polyllm.config.json\n  polyllm models --config polyllm.config.json\n  polyllm new-plugin --provider <id> [--provider-name <Name>] [--dir ./packages/<id>]\n  polyllm diagnose --fixture <file|dir> [--out <dir>] [--quiet]\n`)
+    console.log(`PolyLLM CLI\n\n用法:\n  polyllm studio [--host 127.0.0.1] [--port 5177] [--no-open]\n  polyllm init --config polyllm.config.json --dir ./my-app\n  polyllm doctor --config polyllm.config.json\n  polyllm models --config polyllm.config.json\n  polyllm new-plugin --provider <id> [--provider-name <Name>] [--dir ./packages/<id>]\n  polyllm diagnose --fixture <file|dir> [--out <dir>] [--quiet]
+  polyllm serve --gateway-config <file> [--port 8787]   (0.7.0-beta, 实验性)\n`)
     return
   }
 
@@ -121,6 +128,27 @@ async function main(): Promise<void> {
 
   if (options.command === 'new-plugin') {
     await newPlugin(options)
+    return
+  }
+
+  if (options.command === 'serve') {
+    const configPath = resolve(options.gatewayConfigPath ?? 'polyllm.gateway.json')
+    let config: GatewayConfig
+    try {
+      config = JSON.parse(await readFile(configPath, 'utf8')) as GatewayConfig
+    } catch (error) {
+      throw new Error(`serve: 无法读取网关配置 ${configPath}: ${error instanceof Error ? error.message : error}`)
+    }
+    if (options.gatewayPort !== undefined) {
+      if (!Number.isInteger(options.gatewayPort) || options.gatewayPort < 0 || options.gatewayPort > 65535) {
+        throw new Error('无效的网关端口')
+      }
+    }
+    const { server, port } = await startGatewayServer({ ...config, port: options.gatewayPort ?? config.port ?? 8787 })
+    console.log(`🚪 PolyLLM gateway (0.7.0-beta, 实验性) listening on http://127.0.0.1:${port}`)
+    console.log('   POST /v1/chat/completions (OpenAI) · POST /v1/messages (Anthropic) · GET /v1/models · GET /usage')
+    console.log('   Ctrl-C 停止。')
+    server.on('close', () => process.exit(0))
     return
   }
 
